@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Euclid.BVH.fsproj" />
+  <Project Path="Test/Test.fsproj" />
+</Solution>
