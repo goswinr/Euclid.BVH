@@ -65,15 +65,64 @@ module internal BvhUtil =
         let dz = axis p.Z b.MinZ b.MaxZ
         dx*dx + dy*dy + dz*dz
 
+    /// Returns the exact number of nodes that build will create for the given count of items.
+    /// The shape of the tree only depends on the count of items and the leaf size,
+    /// because the split is always at the middle of the index range.
+    /// This mirrors the recursion of buildNode below, so that the node array can be allocated at its exact size.
+    let rec nodeCount (count: int) (leafSize: int) : int =
+        if count <= leafSize then 1
+        else
+            let mid = count / 2
+            1 + nodeCount mid leafSize + nodeCount (count - mid) leafSize
+
+    /// Reorders idx.[first..last], together with the parallel keys, such that position k holds the item
+    /// that a full sort by key would put there. All items before k have a smaller or equal key,
+    /// all items after k a bigger or equal one.
+    /// This is a quickselect with a three way partition. It runs in place, in linear time on average,
+    /// and does not allocate. Only the median is needed for the split, so a full sort would be wasted work.
+    let selectNth (idx: int[]) (keys: float[]) (first: int) (last: int) (k: int) : unit =
+        let inline swap i j =
+            let ti = idx.[i] in idx.[i] <- idx.[j] ; idx.[j] <- ti
+            let tk = keys.[i] in keys.[i] <- keys.[j] ; keys.[j] <- tk
+        let mutable lo = first
+        let mutable hi = last
+        let mutable go = true
+        while go && lo < hi do
+            // the median of the first, middle and last key as the pivot,
+            // so that sorted or reversed input does not degenerate to quadratic time:
+            let a = keys.[lo]
+            let b = keys.[lo + (hi - lo) / 2]
+            let c = keys.[hi]
+            let pivot =
+                if a < b then (if b < c then b elif a < c then c else a)
+                else          (if a < c then a elif b < c then c else b)
+            // partition lo..hi into three parts: smaller than the pivot, equal to it, bigger than it.
+            // The equal part is never empty, so each iteration shrinks the range and the loop terminates.
+            let mutable lt = lo // keys.[lo   .. lt-1] are smaller than the pivot
+            let mutable gt = hi // keys.[gt+1 .. hi  ] are bigger than the pivot
+            let mutable i  = lo // keys.[lt   .. i-1 ] are equal to the pivot
+            while i <= gt do
+                let v = keys.[i]
+                if   v < pivot then swap i lt ; lt <- lt + 1 ; i <- i + 1
+                elif v > pivot then swap i gt ; gt <- gt - 1 // i is not advanced, the swapped in key is still unseen
+                else                            i <- i + 1
+            if   k < lt then hi <- lt - 1 // the k-th item is in the smaller part
+            elif k > gt then lo <- gt + 1 // the k-th item is in the bigger part
+            else             go <- false  // the k-th item is in the equal part, it is already in place
+
     /// Builds the flattened node array for the given boxes.
     /// Returns the permutation of item indices, the nodes and the index of the root node.
     let build (boxes: BBox[]) (leafSize: int) : int[] * BvhNode[] * int =
         let n = boxes.Length
-        let cx = Array.init n (fun i -> (boxes.[i].MinX + boxes.[i].MaxX) * 0.5)
-        let cy = Array.init n (fun i -> (boxes.[i].MinY + boxes.[i].MaxY) * 0.5)
-        let cz = Array.init n (fun i -> (boxes.[i].MinZ + boxes.[i].MaxZ) * 0.5)
-        let idx = Array.init n id
-        let nodes = ResizeArray<BvhNode>(2 * n / leafSize + 2)
+        // the permutation of item indices, reordered in place while building:
+        let idx = Array.zeroCreate<int> n
+        for i = 0 to n - 1 do
+            idx.[i] <- i
+        // scratch space for the box centers along the split axis of the current node, parallel to idx.
+        // It is refilled for the range of each node, so that no per node array is needed:
+        let keys = Array.zeroCreate<float> n
+        // the count of nodes is known upfront, so the array is allocated at its exact size and filled in place:
+        let nodes = Array.zeroCreate<BvhNode> (nodeCount n leafSize)
 
         let boxOf start count =
             let mutable b = boxes.[idx.[start]]
@@ -81,36 +130,42 @@ module internal BvhUtil =
                 b <- b.Union boxes.[idx.[i]]
             b
 
-        // recursively builds the node for idx.[start .. start+count-1] and returns its index in the nodes list
-        let rec buildNode start count : int =
+        // recursively builds the node for idx.[start .. start+count-1] into nodes.[nodeIdx] and its
+        // subtree into the slots right after it. Returns the first free slot after the subtree.
+        let rec buildNode nodeIdx start count : int =
             let box = boxOf start count
-            let nodeIdx = nodes.Count
             if count <= leafSize then
-                nodes.Add { Box = box; LeftOrStart = start; RightChild = -1; Count = count }
-                nodeIdx
+                nodes.[nodeIdx] <- { Box = box; LeftOrStart = start; RightChild = -1; Count = count }
+                nodeIdx + 1
             else
                 // split at the median of the box centers along the longest axis of this node's box:
                 let sizeX = box.MaxX - box.MinX
                 let sizeY = box.MaxY - box.MinY
                 let sizeZ = box.MaxZ - box.MinZ
-                let centers =
-                    if   sizeX >= sizeY && sizeX >= sizeZ then cx
-                    elif sizeY >= sizeZ                   then cy
-                    else                                       cz
-                // sort the index range by center along that axis (Array.sub + sortInPlaceBy instead of
-                // the System.Array.Sort range overload, so that it also compiles with Fable):
-                let sub = Array.sub idx start count
-                Array.sortInPlaceBy (fun i -> centers.[i]) sub
-                Array.blit sub 0 idx start count
+                let last = start + count - 1
+                if sizeX >= sizeY && sizeX >= sizeZ then
+                    for i = start to last do
+                        let ii = idx.[i]
+                        keys.[i] <- (boxes.[ii].MinX + boxes.[ii].MaxX) * 0.5
+                elif sizeY >= sizeZ then
+                    for i = start to last do
+                        let ii = idx.[i]
+                        keys.[i] <- (boxes.[ii].MinY + boxes.[ii].MaxY) * 0.5
+                else
+                    for i = start to last do
+                        let ii = idx.[i]
+                        keys.[i] <- (boxes.[ii].MinZ + boxes.[ii].MaxZ) * 0.5
                 let mid = count / 2
-                nodes.Add { Box = box; LeftOrStart = -1; RightChild = -1; Count = 0 } // placeholder, patched below
-                let left = buildNode start mid
-                let right = buildNode (start + mid) (count - mid)
+                // only partition around the median, do not sort the whole range:
+                selectNth idx keys start last (start + mid)
+                let left = nodeIdx + 1
+                let right = buildNode left start mid
+                let free = buildNode right (start + mid) (count - mid)
                 nodes.[nodeIdx] <- { Box = box; LeftOrStart = left; RightChild = right; Count = 0 }
-                nodeIdx
+                free
 
-        let root = buildNode 0 n
-        idx, nodes.ToArray(), root
+        buildNode 0 0 n |> ignore
+        idx, nodes, 0
 
 /// <summary>A generic static Bounding Volume Hierarchy (BVH) over any items,
 /// built from Euclid axis aligned bounding boxes (BBox).
