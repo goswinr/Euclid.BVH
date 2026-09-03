@@ -155,6 +155,10 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
         if items.Length = 0 then fail "Bvh.create: items array is empty."
         let leafSize = if leafSize < 1 then Bvh<'T>.DefaultLeafSize else leafSize
         let boxes = Array.init items.Length (fun i -> getBox items.[i])
+        Bvh<'T>.createWithBoxes (items, boxes, leafSize)
+
+    /// Builds a Bvh from items and their already evaluated bounding boxes.
+    static member internal createWithBoxes (items: 'T[], boxes: BBox[], leafSize: int) : Bvh<'T> =
         let idx, nodes, root = BvhUtil.build boxes leafSize
         Bvh<'T> (items, boxes, idx, nodes, root)
 

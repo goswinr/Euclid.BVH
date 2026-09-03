@@ -98,6 +98,22 @@ let struct (i, d) = bvh.ClosestItem (queryBox, sqDist query)  // closest ball to
 The bounding box distance is always a lower bound of the exact distance, so the tree can
 prune subtrees safely in both flavors of query.
 
+### 2D usage
+
+`Bvh2d<'T>` provides the same generic queries for 2D items bounded by Euclid `BRect`
+values, with `Pt` point queries. `LineBvh2d` adds exact `Line2D` segment queries.
+
+```fsharp
+let rects : BRect[] = ...
+let bvh = Bvh2d.createFromRects rects
+let struct (index, distance) = bvh.ClosestRect (Pt (5., 5.))
+let nearby = bvh.ItemsInRect (BRect.createXY (0., 0., 10., 10.))
+
+let lines : Line2D[] = ...
+let lineBvh = LineBvh2d.create lines
+let struct (lineIndex, lineDistance) = lineBvh.ClosestLine (Pt (5., 5.))
+```
+
 ## Examples
 
 Runnable examples for an F# script (`.fsx`) after `#r "nuget: Euclid.BVH"`.
@@ -246,6 +262,9 @@ The core type is the generic `Bvh<'T>`:
 | `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, sqDistance)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
 | `bvh.ItemsInBox (box, ?tolerance)` | All items whose bounding box is within `tolerance` of a given `BBox`. |
 | `bvh.ItemsNearPoint (pt, ?tolerance)` | All items whose bounding box is within `tolerance` of a given 3D point. |
+| `Bvh2d.create (items, getRect, ?leafSize)` | Builds an immutable 2D tree from any items and a `BRect` function. |
+| `Bvh2d.createFromRects (rects, ?leafSize)` | Builds a 2D tree directly from `BRect[]`. |
+| `bvh.ClosestRect`, `bvh.ItemsInRect`, `bvh.ItemsNearPoint` | 2D bounding-rectangle and `Pt` queries. |
 
 `LineBvh` is a thin wrapper over `Bvh<Line3D>` that measures exact segment-to-segment distances:
 
@@ -261,6 +280,9 @@ The core type is the generic `Bvh<'T>`:
 | `bvh.ClosestPoint pt` | The point on any line in the tree that is closest to a 3D point. |
 | `bvh.LinesNearPoint (pt, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given 3D point. |
 | `bvh.Tree` | The underlying generic `Bvh<Line3D>`. |
+
+`LineBvh2d` provides the corresponding `Line2D` API: `ClosestLine`, `ClosestPoint`,
+`ClosestPair`, `NearestNeighbors`, `ClosePairs`, `LinesInRect`, and `LinesNearPoint`.
 
 Full API documentation: [goswinr.github.io/Euclid.BVH](https://goswinr.github.io/Euclid.BVH)
 
