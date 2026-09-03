@@ -2,7 +2,12 @@ module TestLineBvh
 
 open Euclid
 open System
+
+#if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
+open Fable.Mocha
+#else
 open Expecto
+#endif
 
 /// A deterministic pseudo random generator so tests are repeatable.
 let private rand = Random 42

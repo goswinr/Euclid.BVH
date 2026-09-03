@@ -97,8 +97,11 @@ module internal BvhUtil =
                     if   sizeX >= sizeY && sizeX >= sizeZ then cx
                     elif sizeY >= sizeZ                   then cy
                     else                                       cz
-                Array.Sort (idx, start, count, { new Collections.Generic.IComparer<int> with
-                                                    member _.Compare (a, b) = compare centers.[a] centers.[b] })
+                // sort the index range by center along that axis (Array.sub + sortInPlaceBy instead of
+                // the System.Array.Sort range overload, so that it also compiles with Fable):
+                let sub = Array.sub idx start count
+                Array.sortInPlaceBy (fun i -> centers.[i]) sub
+                Array.blit sub 0 idx start count
                 let mid = count / 2
                 nodes.Add { Box = box; LeftOrStart = -1; RightChild = -1; Count = 0 } // placeholder, patched below
                 let left = buildNode start mid

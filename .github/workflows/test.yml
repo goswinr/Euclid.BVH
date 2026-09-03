@@ -29,3 +29,21 @@ jobs:
 
       - name: Run tests .NET
         run: dotnet run --project ./Test/Test.fsproj
+
+      # run JS tests:
+
+      - name: Restore .NET tools (Fable)
+        run: dotnet tool restore
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24.x'
+
+      - name: Clean Install npm dependencies
+        run: npm ci
+        working-directory: ./Test
+
+      - name: Run tests JS
+        run: npm test
+        working-directory: ./Test
