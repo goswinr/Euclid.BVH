@@ -52,6 +52,7 @@
     <None Include="./README.md" Pack="true" PackagePath="" />
     <Content Include="*.fsproj; **/*.fs; **/*.fsi" PackagePath="fable/" />    <!--so that it can be used with Fable-->
 
+    <Compile Include="Src/Bvh.fs" />
     <Compile Include="Src/LineBvh.fs" />
   </ItemGroup>
 

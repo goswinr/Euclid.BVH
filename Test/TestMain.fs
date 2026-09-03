@@ -10,6 +10,8 @@ let mutable cliArgs : string[] = [||]
 let test x = runTestsWithCLIArgs [] cliArgs x
 
 let run () =
+    test TestBvh.tests
+    |||
     test TestLineBvh.tests
 
 [<EntryPoint>]

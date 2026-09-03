@@ -8,6 +8,7 @@
     <PackageReference Include="Expecto" Version="11.1.0" />
     <ProjectReference Include="../Euclid.BVH.fsproj" />
 
+    <Compile Include="TestBvh.fs" />
     <Compile Include="TestLineBvh.fs" />
     <Compile Include="TestMain.fs" />
   </ItemGroup>
