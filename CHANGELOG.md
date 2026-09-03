@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LineBvh.Tree` exposing the underlying generic `Bvh<Line3D>`.
 
 ### Changed
+- Tree building allocates about 8 times less and is about 2.5 times faster on big inputs:
+  the median split now uses an in place quickselect instead of sorting a copy of each index range,
+  the node array is allocated at its exact size instead of growing a `ResizeArray` and copying it,
+  and the three arrays of box centers are replaced by one scratch array.
+  The resulting trees are identical in shape and query performance.
 - `LineBvh` is now a thin wrapper around `Bvh<Line3D>`. Its public API is unchanged.
 - `LinePair` is now an alias for `BvhPair`.
 
