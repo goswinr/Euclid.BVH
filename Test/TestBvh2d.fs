@@ -20,6 +20,13 @@ let private rectDistance (a: BRect) (b: BRect) =
 
 let tests =
     testList "Bvh2d" [
+        test "build evaluates every bounding rectangle once" {
+            let mutable calls = 0
+            let rects = [| BRect.createXY (0., 0., 1., 1.); BRect.createXY (2., 0., 3., 1.) |]
+            Bvh2d.create (rects, fun rect -> calls <- calls + 1; rect) |> ignore
+            Expect.equal calls rects.Length "bounding rectangle function is called once per item"
+        }
+
         test "closest rectangle matches planar distance" {
             let rects =
                 [| BRect.createXY (0., 0., 1., 1.)

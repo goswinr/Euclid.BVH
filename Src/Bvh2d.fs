@@ -33,7 +33,7 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], tree: Bvh<'T>) =
         if items.Length = 0 then fail "Bvh2d.create: items array is empty."
         let leafSize = if leafSize < 1 then Bvh2d<'T>.DefaultLeafSize else leafSize
         let rects = Array.init items.Length (fun i -> getRect items.[i])
-        let tree = Bvh.create (items, (fun item -> item |> getRect |> toBox), leafSize)
+        let tree = Bvh<'T>.createWithBoxes (items, Array.map toBox rects, leafSize)
         Bvh2d<'T> (items, rects, tree)
 
     /// Builds a Bvh2d from the given resizable array of items.
