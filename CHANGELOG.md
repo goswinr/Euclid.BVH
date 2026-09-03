@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- `Bvh<'T>`: a generic static Bounding Volume Hierarchy over any item type, built from items plus a bounding box function (`Bvh.create`) or directly from `BBox[]` (`Bvh.createFromBoxes`).
+- Box based queries on `Bvh<'T>`: `ClosestBox`, `ClosestPair`, `NearestNeighbors`, `ClosePairs` and `ItemsInBox`.
+- Exact distance queries on `Bvh<'T>` via squared distance callbacks: `ClosestItem`, `ClosestPair`, `NearestNeighbors` and `ClosePairs` overloads.
+- `BvhPair` result type for pair queries.
+- `LineBvh.Tree` exposing the underlying generic `Bvh<Line3D>`.
+
+### Changed
+- `LineBvh` is now a thin wrapper around `Bvh<Line3D>`. Its public API is unchanged.
+- `LinePair` is now an alias for `BvhPair`.
 
 ## [0.1.0] - 2026-09-03
 ### Added

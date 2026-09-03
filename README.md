@@ -58,9 +58,55 @@ let closePairs = bvh.ClosePairs 0.5
 let hits = bvh.LinesInBox (BBox.createFromSeq [ Pnt (0., 0., 0.); Pnt (10., 10., 10.) ])
 ```
 
+### Generic usage
+
+The tree itself is generic: `Bvh<'T>` works with any item type, given a function that returns
+the bounding box of an item. It can also be built and queried with plain boxes.
+
+```fsharp
+open Euclid
+
+// build directly from bounding boxes, the boxes are the items:
+let boxes : BBox[] = ...
+let bvh = Bvh.createFromBoxes boxes
+
+// the box closest to a query box (distance 0.0 if they overlap or touch):
+let struct (index, distance) = bvh.ClosestBox queryBox
+
+// all pairs of overlapping or touching boxes:
+let overlaps = bvh.ClosePairs 0.0
+
+// or build from any items with a box function:
+type Ball = { Center: Pnt; Radius: float }
+let balls : Ball[] = ...
+let bvh = Bvh.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radius, 2.*b.Radius, 2.*b.Radius))
+
+// box based queries work as-is; for exact distances supply a squared distance function:
+let sqDist a b = let d = max 0.0 (a.Center.DistanceTo b.Center - a.Radius - b.Radius) in d * d
+let pair = bvh.ClosestPair sqDist                 // globally closest pair of balls
+let touching = bvh.ClosePairs (0.1, sqDist)       // all pairs of balls closer than 0.1
+let struct (i, d) = bvh.ClosestItem (queryBox, sqDist query)  // closest ball to a query ball
+```
+
+The bounding box distance is always a lower bound of the exact distance, so the tree can
+prune subtrees safely in both flavors of query.
+
 ## API
 
-The main type is `LineBvh`:
+The core type is the generic `Bvh<'T>`:
+
+| Member | Description |
+| --- | --- |
+| `Bvh.create (items, getBox, ?leafSize)` | Builds the immutable tree from any items and a bounding box function. |
+| `Bvh.createFromBoxes (boxes, ?leafSize)` | Builds the tree directly from `BBox[]`, the boxes are the items. |
+| `bvh.ClosestBox (queryBox, ?skipIdx)` | The item whose bounding box is closest to a query box. |
+| `bvh.ClosestItem (queryBox, sqDistanceTo, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
+| `bvh.ClosestPair ()` / `bvh.ClosestPair sqDistance` | The globally closest pair, by box distance or exact distance. |
+| `bvh.NearestNeighbors ()` / `bvh.NearestNeighbors sqDistance` | The nearest neighbor of every item. |
+| `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, sqDistance)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
+| `bvh.ItemsInBox (box, ?tolerance)` | All items whose bounding box is within `tolerance` of a given `BBox`. |
+
+`LineBvh` is a thin wrapper over `Bvh<Line3D>` that measures exact segment-to-segment distances:
 
 | Member | Description |
 | --- | --- |
@@ -70,6 +116,7 @@ The main type is `LineBvh`:
 | `bvh.NearestNeighbors ()` | The nearest neighbor of every line. |
 | `bvh.ClosePairs maxDistance` | All pairs of lines closer than `maxDistance` to each other, found by dual tree traversal. |
 | `bvh.LinesInBox (box, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given `BBox`. |
+| `bvh.Tree` | The underlying generic `Bvh<Line3D>`. |
 
 Full API documentation: [goswinr.github.io/Euclid.BVH](https://goswinr.github.io/Euclid.BVH)
 
