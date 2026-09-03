@@ -53,6 +53,18 @@ module internal BvhUtil =
         let dz = axis a.MinZ a.MaxZ b.MinZ b.MaxZ
         dx*dx + dy*dy + dz*dz
 
+    /// Returns the squared distance between a 3D point and an axis aligned bounding box.
+    /// Returns 0.0 if the point is inside or on the box.
+    let inline sqBoxPntDist (p: Pnt) (b: BBox) : float =
+        let inline axis v bMin bMax =
+            if   v < bMin then bMin - v
+            elif v > bMax then v - bMax
+            else 0.0
+        let dx = axis p.X b.MinX b.MaxX
+        let dy = axis p.Y b.MinY b.MaxY
+        let dz = axis p.Z b.MinZ b.MaxZ
+        dx*dx + dy*dy + dz*dz
+
     /// Builds the flattened node array for the given boxes.
     /// Returns the permutation of item indices, the nodes and the index of the root node.
     let build (boxes: BBox[]) (leafSize: int) : int[] * BvhNode[] * int =
@@ -216,6 +228,75 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
         if bestIdx = -1 then fail "Bvh.ClosestBox: no item found. Tree has only the skipped item?"
         struct (bestIdx, sqrt bestSqDist)
 
+    /// <summary>Finds the item in the tree closest to the given query point.
+    /// The distance to an item is measured to the exact geometry via the given squared distance
+    /// function, while the item bounding boxes provide lower bounds for branch and bound pruning:
+    /// subtrees whose bounding box is farther away from the point
+    /// than the best distance found so far are skipped.</summary>
+    /// <param name="pt">The 3D point to search the closest item for.</param>
+    /// <param name="sqDistanceTo">Returns the exact squared distance from the query point to an item.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>The index of the closest item in the input array and the distance to it.</returns>
+    member _.ClosestItem (pt: Pnt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+        let mutable bestSqDist = Double.MaxValue
+        let mutable bestIdx = -1
+        let rec search nodeIdx =
+            let node = nodes.[nodeIdx]
+            if BvhUtil.sqBoxPntDist pt node.Box < bestSqDist then
+                if node.Count > 0 then // leaf
+                    for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                        let ii = itemIndices.[i]
+                        if ii <> skipIdx then
+                            let sqD = sqDistanceTo items.[ii]
+                            if sqD < bestSqDist then
+                                bestSqDist <- sqD
+                                bestIdx <- ii
+                else
+                    // visit the closer child first for better pruning:
+                    let dLeft = BvhUtil.sqBoxPntDist pt nodes.[node.LeftOrStart].Box
+                    let dRight = BvhUtil.sqBoxPntDist pt nodes.[node.RightChild].Box
+                    if dLeft <= dRight then
+                        search node.LeftOrStart
+                        search node.RightChild
+                    else
+                        search node.RightChild
+                        search node.LeftOrStart
+        search root
+        if bestIdx = -1 then fail "Bvh.ClosestItem: no item found. Tree has only the skipped item?"
+        struct (bestIdx, sqrt bestSqDist)
+
+    /// <summary>Finds the item in the tree whose bounding box is closest to the given query point.
+    /// The distance between a point and a box is 0.0 if the point is inside or on the box.</summary>
+    /// <param name="pt">The 3D point to search the closest item box for.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>The index of the item with the closest bounding box and the distance from the point to that box.</returns>
+    member _.ClosestBox (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+        let mutable bestSqDist = Double.MaxValue
+        let mutable bestIdx = -1
+        let rec search nodeIdx =
+            let node = nodes.[nodeIdx]
+            if BvhUtil.sqBoxPntDist pt node.Box < bestSqDist then
+                if node.Count > 0 then // leaf
+                    for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                        let ii = itemIndices.[i]
+                        if ii <> skipIdx then
+                            let sqD = BvhUtil.sqBoxPntDist pt boxes.[ii]
+                            if sqD < bestSqDist then
+                                bestSqDist <- sqD
+                                bestIdx <- ii
+                else
+                    let dLeft = BvhUtil.sqBoxPntDist pt nodes.[node.LeftOrStart].Box
+                    let dRight = BvhUtil.sqBoxPntDist pt nodes.[node.RightChild].Box
+                    if dLeft <= dRight then
+                        search node.LeftOrStart
+                        search node.RightChild
+                    else
+                        search node.RightChild
+                        search node.LeftOrStart
+        search root
+        if bestIdx = -1 then fail "Bvh.ClosestBox: no item found. Tree has only the skipped item?"
+        struct (bestIdx, sqrt bestSqDist)
+
     /// <summary>Finds the pair of closest items among all items in the tree, measured with
     /// the given exact squared distance function. For every item the nearest neighbor
     /// is searched with branch and bound pruning on the bounding boxes.</summary>
@@ -335,6 +416,29 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
                     for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
                         let ii = itemIndices.[i]
                         if BvhUtil.sqBoxDist box boxes.[ii] <= sqTol then
+                            result.Add ii
+                else
+                    search node.LeftOrStart
+                    search node.RightChild
+        search root
+        result
+
+    /// <summary>Finds the indices of all items whose bounding box is closer to the given
+    /// 3D point than the given tolerance.
+    /// The distance between a point and a box is 0.0 if the point is inside or on the box.</summary>
+    /// <param name="pt">The 3D point to search around.</param>
+    /// <param name="tolerance">The tolerance distance around the point. Optional, 0.0 by default.</param>
+    /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
+    member _.ItemsNearPoint (pt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+        let sqTol = tolerance * tolerance
+        let result = ResizeArray<int>()
+        let rec search nodeIdx =
+            let node = nodes.[nodeIdx]
+            if BvhUtil.sqBoxPntDist pt node.Box <= sqTol then
+                if node.Count > 0 then
+                    for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                        let ii = itemIndices.[i]
+                        if BvhUtil.sqBoxPntDist pt boxes.[ii] <= sqTol then
                             result.Add ii
                 else
                     search node.LeftOrStart

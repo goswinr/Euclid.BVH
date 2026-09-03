@@ -225,4 +225,59 @@ let tests =
             for b in boxes do
                 Expect.isTrue (bvh.Box.Contains b) "tree box should contain every item box"
         }
+
+        test "closest box to point matches brute force" {
+            let boxes = randomBoxes 400
+            let bvh = Bvh.createFromBoxes boxes
+            let pt = Pnt (42., 61., 7.)
+            let struct (_, d) = bvh.ClosestBox pt
+            let queryBox = BBox.createFromSeq [ pt ]
+            let mutable bestD = Double.MaxValue
+            for b in boxes do
+                bestD <- min bestD (boxDist queryBox b)
+            Expect.floatClose Accuracy.high d bestD "closest box distance to point should match brute force"
+        }
+
+        test "closest item to point with exact distance matches brute force" {
+            let balls = randomBalls 300
+            let bvh = Bvh.create (balls, ballBox)
+            let pt = Pnt (50., 50., 10.)
+            let sqDistTo (b: Ball) =
+                let d = max 0.0 (b.Center.DistanceTo pt - b.Radius)
+                d * d
+            let struct (_, d) = bvh.ClosestItem (pt, sqDistTo)
+            let mutable bestD = Double.MaxValue
+            for b in balls do
+                bestD <- min bestD (sqrt (sqDistTo b))
+            Expect.floatClose Accuracy.high d bestD "closest ball distance to point should match brute force"
+        }
+
+        test "items near point match brute force" {
+            let boxes = randomBoxes 300
+            let bvh = Bvh.createFromBoxes boxes
+            let pt = Pnt (50., 50., 10.)
+            let tol = 8.0
+            let found = bvh.ItemsNearPoint (pt, tol) |> Set.ofSeq
+            let queryBox = BBox.createFromSeq [ pt ]
+            let brute =
+                seq { for i = 0 to boxes.Length - 1 do
+                        if boxDist queryBox boxes.[i] <= tol then i }
+                |> Set.ofSeq
+            Expect.equal found brute "items near point should match brute force"
+        }
+
+        test "items near point with zero tolerance finds containing boxes" {
+            let boxes = randomBoxes 300
+            let bvh = Bvh.createFromBoxes boxes
+            // use the center of the first box, it is guaranteed to be inside it:
+            let pt = boxes.[0].Center
+            let found = bvh.ItemsNearPoint pt |> Set.ofSeq
+            Expect.isTrue (found.Contains 0) "the containing box should be found"
+            let queryBox = BBox.createFromSeq [ pt ]
+            let brute =
+                seq { for i = 0 to boxes.Length - 1 do
+                        if boxDist queryBox boxes.[i] <= 0.0 then i }
+                |> Set.ofSeq
+            Expect.equal found brute "containing boxes should match brute force"
+        }
     ]

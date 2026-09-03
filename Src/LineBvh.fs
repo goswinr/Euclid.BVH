@@ -59,6 +59,22 @@ type LineBvh private (bvh: Bvh<Line3D>) =
     member _.ClosestLine (query: Line3D, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
         bvh.ClosestItem (BBox.createFromLine query, sqDist query, skipIdx)
 
+    /// <summary>Finds the closest line in the tree to the given 3D point.
+    /// The distance is measured to the exact (finite) line segments, while the
+    /// bounding boxes are used for branch and bound pruning.</summary>
+    /// <param name="pt">The 3D point to search the closest line for.</param>
+    /// <param name="skipIdx">An index into the input lines array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>The index of the closest line in the input array and the distance from the point to it.</returns>
+    member _.ClosestLine (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+        bvh.ClosestItem (pt, (fun (ln: Line3D) -> ln.SqDistanceToPnt pt), skipIdx)
+
+    /// <summary>Finds the point on any line in the tree that is closest to the given 3D point.</summary>
+    /// <param name="pt">The 3D point to search the closest point for.</param>
+    /// <returns>The closest point on the closest line.</returns>
+    member lb.ClosestPoint (pt: Pnt) : Pnt =
+        let struct (i, _) = lb.ClosestLine pt
+        bvh.Items.[i].ClosestPoint pt
+
     /// <summary>Finds the pair of closest lines among all lines in the tree.
     /// For every line the nearest neighbor is searched with branch and bound pruning.</summary>
     /// <returns>A LinePair with the indices of the two closest lines and their distance.</returns>
@@ -89,3 +105,11 @@ type LineBvh private (bvh: Bvh<Line3D>) =
     /// <returns>A ResizeArray of the indices of the found lines in the input array.</returns>
     member _.LinesInBox (box: BBox, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
         bvh.ItemsInBox (box, tolerance)
+
+    /// <summary>Finds the indices of all lines whose bounding box is closer to the given
+    /// 3D point than the given tolerance.</summary>
+    /// <param name="pt">The 3D point to search around.</param>
+    /// <param name="tolerance">The tolerance distance around the point. Optional, 0.0 by default.</param>
+    /// <returns>A ResizeArray of the indices of the found lines in the input array.</returns>
+    member _.LinesNearPoint (pt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+        bvh.ItemsNearPoint (pt, tolerance)

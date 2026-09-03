@@ -56,6 +56,12 @@ let closePairs = bvh.ClosePairs 0.5
 
 // all lines near an axis aligned bounding box:
 let hits = bvh.LinesInBox (BBox.createFromSeq [ Pnt (0., 0., 0.); Pnt (10., 10., 10.) ])
+
+// point queries: the closest line to a 3D point, the closest point on any line,
+// and all lines near a point:
+let struct (idx, dist) = bvh.ClosestLine (Pnt (5., 5., 5.))
+let closestPt = bvh.ClosestPoint (Pnt (5., 5., 5.))
+let nearby = bvh.LinesNearPoint (Pnt (5., 5., 5.), 2.0)
 ```
 
 ### Generic usage
@@ -100,11 +106,14 @@ The core type is the generic `Bvh<'T>`:
 | `Bvh.create (items, getBox, ?leafSize)` | Builds the immutable tree from any items and a bounding box function. |
 | `Bvh.createFromBoxes (boxes, ?leafSize)` | Builds the tree directly from `BBox[]`, the boxes are the items. |
 | `bvh.ClosestBox (queryBox, ?skipIdx)` | The item whose bounding box is closest to a query box. |
+| `bvh.ClosestBox (pt, ?skipIdx)` | The item whose bounding box is closest to a 3D point. |
 | `bvh.ClosestItem (queryBox, sqDistanceTo, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
+| `bvh.ClosestItem (pt, sqDistanceTo, ?skipIdx)` | The item closest to a 3D point, measured with an exact squared distance function. |
 | `bvh.ClosestPair ()` / `bvh.ClosestPair sqDistance` | The globally closest pair, by box distance or exact distance. |
 | `bvh.NearestNeighbors ()` / `bvh.NearestNeighbors sqDistance` | The nearest neighbor of every item. |
 | `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, sqDistance)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
 | `bvh.ItemsInBox (box, ?tolerance)` | All items whose bounding box is within `tolerance` of a given `BBox`. |
+| `bvh.ItemsNearPoint (pt, ?tolerance)` | All items whose bounding box is within `tolerance` of a given 3D point. |
 
 `LineBvh` is a thin wrapper over `Bvh<Line3D>` that measures exact segment-to-segment distances:
 
@@ -116,6 +125,9 @@ The core type is the generic `Bvh<'T>`:
 | `bvh.NearestNeighbors ()` | The nearest neighbor of every line. |
 | `bvh.ClosePairs maxDistance` | All pairs of lines closer than `maxDistance` to each other, found by dual tree traversal. |
 | `bvh.LinesInBox (box, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given `BBox`. |
+| `bvh.ClosestLine (pt, ?skipIdx)` | The index of and distance to the line closest to a 3D point. |
+| `bvh.ClosestPoint pt` | The point on any line in the tree that is closest to a 3D point. |
+| `bvh.LinesNearPoint (pt, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given 3D point. |
 | `bvh.Tree` | The underlying generic `Bvh<Line3D>`. |
 
 Full API documentation: [goswinr.github.io/Euclid.BVH](https://goswinr.github.io/Euclid.BVH)

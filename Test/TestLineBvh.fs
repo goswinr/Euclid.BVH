@@ -180,4 +180,56 @@ let tests =
             for l in lines do
                 Expect.isTrue (bvh.Box.Contains (BBox.createFromLine l)) "tree box should contain every line box"
         }
+
+        test "closest line to point matches brute force" {
+            let lines = randomLines 500
+            let bvh = LineBvh.create lines
+            let pt = Pnt (42., 61., 7.)
+            let struct (i, d) = bvh.ClosestLine pt
+            let mutable bestD = Double.MaxValue
+            let mutable bestI = -1
+            for j = 0 to lines.Length - 1 do
+                let dj = sqrt (lines.[j].SqDistanceToPnt pt)
+                if dj < bestD then
+                    bestD <- dj
+                    bestI <- j
+            Expect.floatClose Accuracy.high d bestD "closest line distance to point should match brute force"
+            Expect.equal i bestI "closest line index should match brute force"
+        }
+
+        test "closest line to point with skip index" {
+            let lines = randomLines 200
+            let bvh = LineBvh.create lines
+            let pt = lines.[7].From // on line 7 itself
+            let struct (i0, d0) = bvh.ClosestLine pt
+            Expect.equal i0 7 "without skip, line 7 itself is closest"
+            Expect.floatClose Accuracy.high d0 0.0 "distance to own start point is zero"
+            let struct (i1, _) = bvh.ClosestLine (pt, 7)
+            Expect.notEqual i1 7 "with skip, another line is found"
+        }
+
+        test "closest point on lines matches brute force" {
+            let lines = randomLines 300
+            let bvh = LineBvh.create lines
+            let pt = Pnt (33., 44., 11.)
+            let cp = bvh.ClosestPoint pt
+            let mutable bestD = Double.MaxValue
+            for l in lines do
+                bestD <- min bestD (sqrt (l.SqDistanceToPnt pt))
+            Expect.floatClose Accuracy.high (cp.DistanceTo pt) bestD "closest point distance should match brute force"
+        }
+
+        test "lines near point match brute force" {
+            let lines = randomLines 300
+            let bvh = LineBvh.create lines
+            let pt = Pnt (50., 50., 10.)
+            let tol = 8.0
+            let found = bvh.LinesNearPoint (pt, tol) |> Set.ofSeq
+            let queryBox = BBox.createFromSeq [ pt ]
+            let brute =
+                seq { for i = 0 to lines.Length - 1 do
+                        if sqrt (sqBoxDist queryBox (BBox.createFromLine lines.[i])) <= tol then i }
+                |> Set.ofSeq
+            Expect.equal found brute "lines near point should match brute force"
+        }
     ]
