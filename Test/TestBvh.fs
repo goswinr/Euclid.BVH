@@ -84,6 +84,17 @@ let tests =
             Expect.throws (fun () -> Bvh.createFromBoxes [||] |> ignore) "empty input should throw"
         }
 
+        test "create accepts ResizeArray and seq inputs" {
+            let balls = randomBalls 10
+            let fromResizeArray = Bvh.create (ResizeArray balls, ballBox)
+            let fromSeq = Bvh.create (balls |> Seq.map id, ballBox)
+            Expect.equal fromResizeArray.Count balls.Length "ResizeArray count"
+            Expect.equal fromSeq.Count balls.Length "sequence count"
+            for i = 0 to balls.Length - 1 do
+                Expect.isTrue (obj.ReferenceEquals (fromResizeArray.Items.[i], balls.[i])) "ResizeArray items"
+                Expect.isTrue (obj.ReferenceEquals (fromSeq.Items.[i], balls.[i])) "sequence items"
+        }
+
         test "single box tree" {
             let boxes = [| BBox.createFromSeq [ Pnt (0., 0., 0.); Pnt (1., 1., 1.) ] |]
             let bvh = Bvh.createFromBoxes boxes

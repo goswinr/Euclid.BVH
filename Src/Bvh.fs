@@ -158,6 +158,26 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
         let idx, nodes, root = BvhUtil.build boxes leafSize
         Bvh<'T> (items, boxes, idx, nodes, root)
 
+    /// <summary>Builds a Bvh from the given resizable array of items.</summary>
+    /// <param name="items">The items to build the tree from. They are copied to an array at build time.</param>
+    /// <param name="getBox">A function returning the axis aligned bounding box of an item.
+    ///  It is called once per item at build time.</param>
+    /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
+    /// <returns>A new immutable Bvh.</returns>
+    static member create (items: ResizeArray<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
+        if isNull items then fail "Bvh.create: items ResizeArray is null."
+        Bvh<'T>.create (items.ToArray(), getBox, leafSize)
+
+    /// <summary>Builds a Bvh from the given sequence of items.</summary>
+    /// <param name="items">The items to build the tree from. They are enumerated and copied to an array at build time.</param>
+    /// <param name="getBox">A function returning the axis aligned bounding box of an item.
+    ///  It is called once per item at build time.</param>
+    /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
+    /// <returns>A new immutable Bvh.</returns>
+    static member create (items: seq<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
+        if isNull (box items) then fail "Bvh.create: items sequence is null."
+        Bvh<'T>.create (Array.ofSeq items, getBox, leafSize)
+
     /// <summary>Finds the item in the tree closest to the given query bounding box.
     /// The distance to an item is measured to the exact geometry via the given squared distance
     /// function, while the query box and the item boxes provide lower bounds for
@@ -462,6 +482,24 @@ type Bvh private () =
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
     /// <returns>A new immutable Bvh.</returns>
     static member create (items: 'T[], getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
+        Bvh<'T>.create (items, getBox, leafSize)
+
+    /// <summary>Builds a Bvh from the given resizable array of items.</summary>
+    /// <param name="items">The items to build the tree from. They are copied to an array at build time.</param>
+    /// <param name="getBox">A function returning the axis aligned bounding box of an item.
+    ///  It is called once per item at build time.</param>
+    /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
+    /// <returns>A new immutable Bvh.</returns>
+    static member create (items: ResizeArray<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
+        Bvh<'T>.create (items, getBox, leafSize)
+
+    /// <summary>Builds a Bvh from the given sequence of items.</summary>
+    /// <param name="items">The items to build the tree from. They are enumerated and copied to an array at build time.</param>
+    /// <param name="getBox">A function returning the axis aligned bounding box of an item.
+    ///  It is called once per item at build time.</param>
+    /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
+    /// <returns>A new immutable Bvh.</returns>
+    static member create (items: seq<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
         Bvh<'T>.create (items, getBox, leafSize)
 
     /// <summary>Builds a Bvh directly from bounding boxes. The boxes themselves are the items.</summary>
