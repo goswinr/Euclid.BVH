@@ -17,6 +17,8 @@ let test x = runTestsWithCLIArgs [] cliArgs x
 let run () =
     test TestBvh.tests
     |||
+    test TestBvh2d.tests
+    |||
     test TestLineBvh.tests
 
 #if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT

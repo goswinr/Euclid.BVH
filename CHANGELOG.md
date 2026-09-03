@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- `Bvh2d<'T>` and `LineBvh2d`: 2D BVHs using Euclid `BRect` bounding rectangles and `Pt` point queries.
 - Fable support: the library and all tests now compile and pass with Fable (JavaScript and TypeScript), tested with Mocha in CI like the Euclid library.
 - Point queries on `Bvh<'T>`: `ClosestBox (pt)`, `ClosestItem (pt, sqDistanceTo)` and `ItemsNearPoint (pt, ?tolerance)` for querying with a single 3D point (`Pnt`).
 - Point queries on `LineBvh`: `ClosestLine (pt)`, `ClosestPoint (pt)` and `LinesNearPoint (pt, ?tolerance)`.
