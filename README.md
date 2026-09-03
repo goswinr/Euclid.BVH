@@ -103,6 +103,10 @@ prune subtrees safely in both flavors of query.
 `Bvh2d<'T>` provides the same generic queries for 2D items bounded by Euclid `BRect`
 values, with `Pt` point queries. `LineBvh2d` adds exact `Line2D` segment queries.
 
+It is a genuinely two dimensional tree with its own data structure: its nodes store a `BRect`,
+not a `BBox` with a zero Z range. So it needs a third less memory per node and does a third
+less arithmetic per distance test than the 3D `Bvh<'T>`.
+
 ```fsharp
 let rects : BRect[] = ...
 let bvh = Bvh2d.createFromRects rects
@@ -262,9 +266,24 @@ The core type is the generic `Bvh<'T>`:
 | `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, sqDistance)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
 | `bvh.ItemsInBox (box, ?tolerance)` | All items whose bounding box is within `tolerance` of a given `BBox`. |
 | `bvh.ItemsNearPoint (pt, ?tolerance)` | All items whose bounding box is within `tolerance` of a given 3D point. |
+
+`Bvh2d<'T>` is the 2D equivalent, built on `BRect` instead of `BBox`. It has the same members,
+with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
+
+| Member | Description |
+| --- | --- |
 | `Bvh2d.create (items, getRect, ?leafSize)` | Builds an immutable 2D tree from any items and a `BRect` function. |
-| `Bvh2d.createFromRects (rects, ?leafSize)` | Builds a 2D tree directly from `BRect[]`. |
-| `bvh.ClosestRect`, `bvh.ItemsInRect`, `bvh.ItemsNearPoint` | 2D bounding-rectangle and `Pt` queries. |
+| `Bvh2d.createFromRects (rects, ?leafSize)` | Builds a 2D tree directly from `BRect[]`, the rectangles are the items. |
+| `bvh.ClosestRect (queryRect, ?skipIdx)` | The item whose bounding rectangle is closest to a query rectangle. |
+| `bvh.ClosestRect (pt, ?skipIdx)` | The item whose bounding rectangle is closest to a 2D point. |
+| `bvh.ClosestItem (queryRect, sqDistanceTo, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
+| `bvh.ClosestItem (pt, sqDistanceTo, ?skipIdx)` | The item closest to a 2D point, measured with an exact squared distance function. |
+| `bvh.ClosestPair ()` / `bvh.ClosestPair sqDistance` | The globally closest pair, by rectangle distance or exact distance. |
+| `bvh.NearestNeighbors ()` / `bvh.NearestNeighbors sqDistance` | The nearest neighbor of every item. |
+| `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, sqDistance)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
+| `bvh.ItemsInRect (rect, ?tolerance)` | All items whose bounding rectangle is within `tolerance` of a given `BRect`. |
+| `bvh.ItemsNearPoint (pt, ?tolerance)` | All items whose bounding rectangle is within `tolerance` of a given 2D point. |
+| `bvh.Rectangle` | The bounding rectangle around all items. |
 
 `LineBvh` is a thin wrapper over `Bvh<Line3D>` that measures exact segment-to-segment distances:
 
