@@ -97,6 +97,137 @@ let struct (i, d) = bvh.ClosestItem (queryBox, sqDist query)  // closest ball to
 The bounding box distance is always a lower bound of the exact distance, so the tree can
 prune subtrees safely in both flavors of query.
 
+## Examples
+
+Runnable examples for an F# script (`.fsx`) after `#r "nuget: Euclid.BVH"`.
+The line based examples all use the `bvh` built in the first one.
+
+### Clash detection on piping
+
+Find all pairs of pipe center lines that violate a minimum clearance:
+
+```fsharp
+open System
+open Euclid
+
+let rand = Random 42
+
+// 10_000 random short lines clustered in a 100 x 100 x 100 volume:
+let lines =
+    Array.init 10_000 (fun _ ->
+        let p = Pnt (rand.NextDouble() * 100., rand.NextDouble() * 100., rand.NextDouble() * 100.)
+        let v = Vec (rand.NextDouble() - 0.5, rand.NextDouble() - 0.5, rand.NextDouble() - 0.5)
+        Line3D.createFromPntAndVec (p, v))
+
+let bvh = LineBvh.create lines
+
+// all pairs of lines closer than 0.25 units to each other, via dual tree traversal:
+let clashes = bvh.ClosePairs 0.25
+for pair in clashes do
+    printfn $"line {pair.IdxA} and line {pair.IdxB} are only {pair.Distance} apart"
+
+// the single worst offender, the globally closest pair:
+let worst = bvh.ClosestPair ()
+printfn $"closest pair: {worst.IdxA} and {worst.IdxB} at distance {worst.Distance}"
+```
+
+### Snapping a point to the nearest line
+
+```fsharp
+// where the user clicked:
+let mousePt = Pnt (50., 50., 50.)
+
+// index of and distance to the nearest line:
+let struct (idx, dist) = bvh.ClosestLine mousePt
+
+// the exact point on that line to snap to:
+let snapPt = bvh.ClosestPoint mousePt
+printfn $"snapped to line {idx} at {snapPt}, {dist} away"
+```
+
+### Nearest neighbor statistics
+
+```fsharp
+// for every line the index of and distance to its nearest neighbor:
+let neighbors = bvh.NearestNeighbors ()
+
+let avgGap = neighbors |> Array.averageBy (fun p -> p.Distance)
+let isolated = neighbors |> Array.filter (fun p -> p.Distance > 10. * avgGap)
+printfn $"average gap {avgGap}, {isolated.Length} lines are isolated"
+```
+
+### Region queries
+
+```fsharp
+// all lines whose bounding box touches a region of interest:
+let region = BBox.createFromSeq [ Pnt (40., 40., 40.); Pnt (60., 60., 60.) ]
+for idx in bvh.LinesInBox region do
+    printfn $"line {idx} is inside or touches the region"
+
+// all lines whose bounding box is within 2.0 units of a point:
+for idx in bvh.LinesNearPoint (mousePt, 2.0) do
+    printfn $"line {idx} is near the point"
+```
+
+### Overlapping boxes with the generic tree
+
+`Bvh<'T>` can be used with plain boxes, for example as a broad phase for collision detection:
+
+```fsharp
+open System
+open Euclid
+
+let rand = Random 42
+
+// 10_000 random boxes:
+let boxes =
+    Array.init 10_000 (fun _ ->
+        let c = Pnt (rand.NextDouble() * 100., rand.NextDouble() * 100., rand.NextDouble() * 100.)
+        BBox.createFromCenter (c, rand.NextDouble(), rand.NextDouble(), rand.NextDouble()))
+
+let bvh = Bvh.createFromBoxes boxes
+
+// all pairs of boxes that overlap or touch:
+let overlaps = bvh.ClosePairs 0.0
+
+// all boxes within 1.5 units of a given box:
+let query = BBox.createFromCenter (Pnt (50., 50., 50.), 4., 4., 4.)
+let near = bvh.ItemsInBox (query, 1.5)
+
+// the box closest to a 3D point:
+let struct (closest, distance) = bvh.ClosestBox (Pnt (0., 0., 0.))
+```
+
+### Custom item types
+
+Any type works, given a bounding box function. Exact distances are supplied per query:
+
+```fsharp
+open System
+open Euclid
+
+type Ball = { Center: Pnt; Radius: float }
+
+let rand = Random 42
+let balls =
+    Array.init 5_000 (fun _ ->
+        { Center = Pnt (rand.NextDouble() * 100., rand.NextDouble() * 100., rand.NextDouble() * 100.)
+          Radius = 0.1 + rand.NextDouble() })
+
+let bvh = Bvh.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radius, 2.*b.Radius, 2.*b.Radius))
+
+// exact squared surface-to-surface distance between two balls:
+let sqDist a b =
+    let d = max 0.0 (a.Center.DistanceTo b.Center - a.Radius - b.Radius)
+    d * d
+
+// the pair of balls with the smallest gap between their surfaces:
+let pair = bvh.ClosestPair sqDist
+
+// all pairs of balls whose surfaces are closer than 0.1:
+let touching = bvh.ClosePairs (0.1, sqDist)
+```
+
 ## API
 
 The core type is the generic `Bvh<'T>`:
