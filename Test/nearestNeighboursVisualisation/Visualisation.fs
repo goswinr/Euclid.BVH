@@ -2,7 +2,6 @@ module NearestNeighboursVisualisation
 
 open System
 open System.Collections.Generic
-open System.Diagnostics
 open Euclid
 
 type Segment = {
@@ -128,17 +127,15 @@ let private measureClosestLine (lines: Line2D[]) queryIndex =
     let query = lines.[queryIndex]
     let bvh = LineBvh2d.create lines
     let iterations = max 1 (2_000_000 / lines.Length)
-    let stopwatch = Stopwatch()
     let mutable bvhResult = struct (-1, Double.MaxValue)
 
-    stopwatch.Start()
+    let startedBvh = DateTime.UtcNow
     for _ = 1 to iterations do
         bvhResult <- bvh.ClosestLine (query, queryIndex)
-    stopwatch.Stop()
-    let bvhMilliseconds = stopwatch.Elapsed.TotalMilliseconds / float iterations
+    let bvhMilliseconds = (DateTime.UtcNow - startedBvh).TotalMilliseconds / float iterations
 
     let mutable bruteResult = struct (-1, Double.MaxValue)
-    stopwatch.Restart()
+    let startedBruteForce = DateTime.UtcNow
     for _ = 1 to iterations do
         let mutable closestIndex = -1
         let mutable closestSqDistance = Double.MaxValue
@@ -149,7 +146,7 @@ let private measureClosestLine (lines: Line2D[]) queryIndex =
                     closestIndex <- i
                     closestSqDistance <- sqDistance
         bruteResult <- struct (closestIndex, sqrt closestSqDistance)
-    stopwatch.Stop()
+    let bruteForceMilliseconds = (DateTime.UtcNow - startedBruteForce).TotalMilliseconds / float iterations
 
     let struct (_, bvhDistance) = bvhResult
     let struct (_, bruteDistance) = bruteResult
@@ -158,7 +155,7 @@ let private measureClosestLine (lines: Line2D[]) queryIndex =
 
     {
         BvhMilliseconds = bvhMilliseconds
-        BruteForceMilliseconds = stopwatch.Elapsed.TotalMilliseconds / float iterations
+        BruteForceMilliseconds = bruteForceMilliseconds
         Iterations = iterations
     }
 
