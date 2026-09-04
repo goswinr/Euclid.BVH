@@ -46,6 +46,16 @@ jobs:
         # for this to work in dotnet-tools.json, rollForward must be set to 'false' for fsdocs-tool
         run: dotnet fsdocs build --clean --strict --properties Configuration=Release --input Docs --output DocsGenerated
 
+      - name: Build SVG visualisation
+        run: npm run buildVisualisation
+        working-directory: ./Test
+
+      - name: Add SVG visualisation to documentation
+        run: |
+          mkdir -p DocsGenerated/svgVisualisation
+          cp Test/svgVisualisation/{index.html,app.js,style.css} DocsGenerated/svgVisualisation/
+          cp -R Test/svgVisualisation/dist DocsGenerated/svgVisualisation/
+
       - name: Upload documentation html files
         uses: actions/upload-pages-artifact@v5
         with:
