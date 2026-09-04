@@ -1,4 +1,4 @@
-import { createScene } from "./dist/Visualisation.js";
+import { createScene, measurePerformance } from "./dist/Visualisation.js";
 
 const svg = document.querySelector("#tree");
 const lineOutput = document.querySelector("#line");
@@ -10,6 +10,7 @@ const next = document.querySelector("#next");
 let seed = Date.now();
 let lineIndex = 0;
 let scene;
+let renderId = 0;
 
 const element = (name, attributes) => {
   const item = document.createElementNS("http://www.w3.org/2000/svg", name);
@@ -18,10 +19,10 @@ const element = (name, attributes) => {
 };
 
 function render() {
+  const currentRenderId = ++renderId;
   const count = Math.max(1, Math.min(10, Number.parseInt(countInput.value, 10) || 1));
   const lineCount = Math.max(20, Math.min(20000, Number.parseInt(lineCountInput.value, 10) || 100));
   countInput.value = count;
-  lineCountInput.value = lineCount;
   lineIndex = Math.max(0, Math.min(lineCount - 1, lineIndex));
   scene = createScene(seed, lineIndex, count, lineCount);
   const neighbors = new Map(scene.Neighbors.map((neighbor, rank) => [neighbor.Index, rank + 1]));
@@ -42,17 +43,30 @@ function render() {
   });
 
   lineOutput.value = `Line ${lineIndex + 1}/${scene.Lines.length}`;
-  const performance = scene.Performance;
-  const speedup = performance.BruteForceMilliseconds / performance.BvhMilliseconds;
-  summary.value = `${scene.Visited.length} BRects tested · BVH ${performance.BvhMilliseconds.toFixed(3)} ms · brute force ${performance.BruteForceMilliseconds.toFixed(3)} ms · ${speedup.toFixed(1)}× (${performance.Iterations} runs)`;
+  summary.value = `${scene.Visited.length} BRects tested · measuring performance…`;
   previous.disabled = lineIndex === 0;
   next.disabled = lineIndex === scene.Lines.length - 1;
+
+  setTimeout(() => {
+    if (currentRenderId !== renderId) return;
+    const performance = measurePerformance(seed, lineIndex, lineCount);
+    if (currentRenderId !== renderId) return;
+    const speedup = performance.BruteForceMilliseconds / performance.BvhMilliseconds;
+    summary.value = `${scene.Visited.length} BRects tested · BVH ${performance.BvhMilliseconds.toFixed(3)} ms · brute force ${performance.BruteForceMilliseconds.toFixed(3)} ms · ${speedup.toFixed(1)}× (${performance.Iterations} runs)`;
+  });
 }
 
 previous.addEventListener("click", () => { lineIndex--; render(); });
 next.addEventListener("click", () => { lineIndex++; render(); });
 countInput.addEventListener("change", render);
-lineCountInput.addEventListener("change", render);
+lineCountInput.addEventListener("input", () => {
+  const lineCount = Number.parseInt(lineCountInput.value, 10);
+  if (lineCount >= 20 && lineCount <= 20000) render();
+});
+lineCountInput.addEventListener("change", () => {
+  lineCountInput.value = Math.max(20, Math.min(20000, Number.parseInt(lineCountInput.value, 10) || 100));
+  render();
+});
 document.querySelector("#regenerate").addEventListener("click", () => {
   seed++;
   lineIndex = 0;
