@@ -1,4 +1,4 @@
-import { createScene, measurePerformance } from "./dist/Visualisation.js";
+import { createScene } from "./dist/Visualisation.js";
 
 const svg = document.querySelector("#tree");
 const lineOutput = document.querySelector("#line");
@@ -11,6 +11,8 @@ let seed = Date.now();
 let lineIndex = 0;
 let scene;
 let renderId = 0;
+let performanceWorker;
+let inputTimer;
 
 const element = (name, attributes) => {
   const item = document.createElementNS("http://www.w3.org/2000/svg", name);
@@ -47,13 +49,24 @@ function render() {
   previous.disabled = lineIndex === 0;
   next.disabled = lineIndex === scene.Lines.length - 1;
 
-  setTimeout(() => {
-    if (currentRenderId !== renderId) return;
-    const performance = measurePerformance(seed, lineIndex, lineCount);
-    if (currentRenderId !== renderId) return;
+  performanceWorker?.terminate();
+  performanceWorker = new Worker(new URL("./performanceWorker.js", import.meta.url), { type: "module" });
+  performanceWorker.addEventListener("message", ({ data }) => {
+    if (currentRenderId !== renderId || data.renderId !== currentRenderId) return;
+    if (data.error) {
+      summary.value = `${scene.Visited.length} BRects tested · performance measurement failed`;
+      return;
+    }
+    const performance = data.performance;
     const speedup = performance.BruteForceMilliseconds / performance.BvhMilliseconds;
     summary.value = `${scene.Visited.length} BRects tested · BVH ${performance.BvhMilliseconds.toFixed(3)} ms · brute force ${performance.BruteForceMilliseconds.toFixed(3)} ms · ${speedup.toFixed(1)}× (${performance.Iterations} runs)`;
   });
+  performanceWorker.postMessage({ renderId: currentRenderId, seed, lineIndex, lineCount });
+}
+
+function renderLineCount() {
+  clearTimeout(inputTimer);
+  inputTimer = setTimeout(render, 150);
 }
 
 previous.addEventListener("click", () => { lineIndex--; render(); });
@@ -61,9 +74,10 @@ next.addEventListener("click", () => { lineIndex++; render(); });
 countInput.addEventListener("change", render);
 lineCountInput.addEventListener("input", () => {
   const lineCount = Number.parseInt(lineCountInput.value, 10);
-  if (lineCount >= 20 && lineCount <= 20000) render();
+  if (lineCount >= 20 && lineCount <= 20000) renderLineCount();
 });
 lineCountInput.addEventListener("change", () => {
+  clearTimeout(inputTimer);
   lineCountInput.value = Math.max(20, Math.min(20000, Number.parseInt(lineCountInput.value, 10) || 100));
   render();
 });
