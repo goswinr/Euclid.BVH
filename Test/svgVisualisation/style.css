@@ -1,0 +1,9 @@
+* { box-sizing: border-box; }
+body { margin: 0; overflow: hidden; background: #10151c; color: #e7edf5; font: 14px system-ui, sans-serif; }
+svg { width: 100vw; height: 100vh; display: block; }
+#controls { position: fixed; top: 16px; left: 16px; display: flex; gap: 8px; align-items: center; padding: 8px; border-radius: 6px; background: #10151ccc; }
+button { border: 1px solid #5d6b7b; border-radius: 4px; padding: 5px 9px; color: inherit; background: #263342; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+output { min-width: 76px; text-align: center; }
+.line { stroke: #e7edf5; stroke-width: .45; vector-effect: non-scaling-stroke; }
+.node { fill: none; stroke: #55c3d9; stroke-width: 1; vector-effect: non-scaling-stroke; }

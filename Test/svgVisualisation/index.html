@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Euclid.BVH SVG visualisation</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <svg id="tree" viewBox="-5 -5 110 110" preserveAspectRatio="xMidYMid meet" aria-label="2D BVH visualisation"></svg>
+  <div id="controls">
+    <button id="previous" type="button" aria-label="Show previous tree depth">−</button>
+    <output id="level"></output>
+    <button id="next" type="button" aria-label="Show next tree depth">+</button>
+    <button id="regenerate" type="button">New lines</button>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
