@@ -5,7 +5,7 @@
     "buildTS": "dotnet fable ../Euclid.BVH.fsproj --lang typescript --outDir ./_ts --configuration Release --run npm run checkTS",
     "buildJS": "dotnet fable --outDir dist/testsRelease --noCache --configuration Release",
     "buildDb": "dotnet fable --outDir dist/testsDebug --noCache --configuration Debug",
-    "buildVisualisation": "dotnet fable svgVisualisation/Visualisation.fsproj --outDir svgVisualisation/dist --noCache --configuration Release",
+    "buildVisualisation": "dotnet fable svgVisualisation/Visualisation.fsproj --outDir svgVisualisation/dist --noCache --configuration Release && dotnet fable nearestNeighboursVisualisation/Visualisation.fsproj --outDir nearestNeighboursVisualisation/dist --noCache --configuration Release",
     "build": "dotnet tool restore && npm run buildJS && npm run buildDb && npm run buildTS",
     "test": "npm run build && mocha dist/testsRelease && mocha dist/testsDebug"
   },

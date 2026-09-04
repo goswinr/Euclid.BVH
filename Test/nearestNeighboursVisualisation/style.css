@@ -1,0 +1,19 @@
+* { box-sizing: border-box; }
+body { margin: 0; overflow: hidden; background: #10151c; color: #e7edf5; font: 14px system-ui, sans-serif; }
+svg { width: 100vw; height: 100vh; display: block; }
+#controls, #legend { position: fixed; left: 16px; display: flex; gap: 8px; align-items: center; padding: 8px; border-radius: 6px; background: #10151cdd; }
+#controls { top: 16px; flex-wrap: wrap; }
+#legend { bottom: 16px; }
+button, input { border: 1px solid #5d6b7b; border-radius: 4px; padding: 5px 9px; color: inherit; background: #263342; }
+button { cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+input { width: 58px; }
+output { min-width: 76px; text-align: center; }
+.line { stroke: #6f7c89; stroke-width: .55; vector-effect: non-scaling-stroke; }
+.query { stroke: #ffad42; stroke-width: 2.2; }
+.neighbor { stroke: #71e39b; stroke-width: 1.7; }
+.node { fill: none; stroke: #55c3d9; stroke-width: .8; vector-effect: non-scaling-stroke; }
+#legend span::before { content: ""; display: inline-block; width: 18px; margin-right: 5px; vertical-align: middle; border-top: 3px solid; }
+.query-key::before { border-color: #ffad42 !important; }
+.neighbor-key::before { border-color: #71e39b !important; }
+.node-key::before { border-color: #55c3d9 !important; }
