@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Exact distance queries on `Bvh<'T>` via squared distance callbacks: `ClosestItem`, `ClosestPair`, `NearestNeighbors` and `ClosePairs` overloads.
 - `BvhPair` result type for pair queries.
 - `LineBvh.Tree` exposing the underlying generic `Bvh<Line3D>`.
+- An interactive SVG nearest-neighbour visualisation for stepping through random lines, selecting 1–10 neighbours and seeing the bounding rectangles tested by the search.
 
 ### Changed
 - `Bvh2d<'T>` has its own 2D data structure now: its nodes store a `BRect` and all queries run directly on rectangles.

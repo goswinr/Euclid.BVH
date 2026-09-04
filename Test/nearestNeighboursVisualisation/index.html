@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Euclid.BVH nearest-neighbour visualisation</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <svg id="tree" viewBox="-5 -5 110 110" preserveAspectRatio="xMidYMid meet" aria-label="2D BVH nearest-neighbour search visualisation"></svg>
+  <div id="controls">
+    <button id="previous" type="button" aria-label="Show previous query line">−</button>
+    <output id="line"></output>
+    <button id="next" type="button" aria-label="Show next query line">+</button>
+    <label>Neighbours <input id="count" type="number" min="1" max="10" value="1"></label>
+    <button id="regenerate" type="button">New lines</button>
+    <output id="summary"></output>
+  </div>
+  <div id="legend">
+    <span class="query-key">query</span>
+    <span class="neighbor-key">nearest</span>
+    <span class="node-key">tested BRect</span>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
