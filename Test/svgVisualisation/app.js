@@ -17,7 +17,11 @@ const element = (name, attributes) => {
 function render() {
   svg.replaceChildren();
   scene.Lines.forEach((line) => svg.append(element("line", { class: "line", x1: line.X1, y1: line.Y1, x2: line.X2, y2: line.Y2 })));
-  scene.Levels[level].forEach((rect) => svg.append(element("rect", { class: "node", x: rect.MinX, y: rect.MinY, width: rect.MaxX - rect.MinX, height: rect.MaxY - rect.MinY })));
+  const firstVisibleLevel = Math.max(0, level - 2);
+  for (let visibleLevel = firstVisibleLevel; visibleLevel <= level; visibleLevel++) {
+    const age = level - visibleLevel;
+    scene.Levels[visibleLevel].forEach((rect) => svg.append(element("rect", { class: `node age-${age}`, x: rect.MinX, y: rect.MinY, width: rect.MaxX - rect.MinX, height: rect.MaxY - rect.MinY })));
+  }
   levelOutput.value = `Depth ${level + 1}/${scene.Levels.length}`;
   previous.disabled = level === 0;
   next.disabled = level === scene.Levels.length - 1;
