@@ -9,6 +9,7 @@
 A Bounding Volume Hierarchy (BVH) for fast spatial queries on the
 [Euclid](https://github.com/goswinr/Euclid) geometry library.
 Like Euclid itself it also compiles to JavaScript and TypeScript via [Fable](https://fable.io/).
+Explore how the tree subdivides 2D line segments in the [interactive SVG visualisation](https://goswinr.github.io/Euclid.BVH/svgVisualisation/).
 
 Given thousands of static 3D lines with uneven spatial distribution, this library answers
 questions like *"which pairs of lines are closest to each other?"* in about `O(n log n)`
