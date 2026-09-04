@@ -131,6 +131,20 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: 
     /// The axis aligned bounding rectangle around all items in this Bvh2d.
     member _.Rectangle = nodes.[root].Rect
 
+    /// The bounding rectangles of all tree nodes, grouped by their depth from the root.
+    member _.NodeRectanglesByDepth : BRect[][] =
+        let levels = ResizeArray<ResizeArray<BRect>>()
+        let rec collect depth nodeIdx =
+            while levels.Count <= depth do
+                levels.Add(ResizeArray())
+            let node = nodes.[nodeIdx]
+            levels.[depth].Add(node.Rect)
+            if node.Count <= 0 then
+                collect (depth + 1) node.LeftOrStart
+                collect (depth + 1) node.RightChild
+        collect 0 root
+        levels |> Seq.map (fun level -> level.ToArray()) |> Seq.toArray
+
     /// <summary>Builds a Bvh2d from the given items.
     /// The tree is built top-down by splitting at the median of the item-rectangle centers
     /// along the longer axis of the current bounding rectangle.</summary>
