@@ -34,7 +34,6 @@ type Scene = {
     QueryIndex: int
     Neighbors: Neighbor[]
     Visited: Rectangle[]
-    Performance: Performance
     }
 
 type private Node = {
@@ -123,6 +122,15 @@ let private nearest (lines: Line2D[]) (rects: BRect[]) (root: Node) queryIndex n
     |> Seq.toArray,
     visited.ToArray()
 
+let private createLines seed lineCount =
+    let random = Random seed
+    Array.init (max 20 (min 20_000 lineCount)) (fun _ ->
+        let x = random.NextDouble() * 100.0
+        let y = random.NextDouble() * 100.0
+        let angle = random.NextDouble() * Math.PI * 2.0
+        let length = 1.0 + random.NextDouble() * 4.0
+        Line2D (x, y, x + cos angle * length, y + sin angle * length))
+
 let private measureClosestLine (lines: Line2D[]) queryIndex =
     let query = lines.[queryIndex]
     let bvh = LineBvh2d.create lines
@@ -160,15 +168,7 @@ let private measureClosestLine (lines: Line2D[]) queryIndex =
     }
 
 let createScene (seed: int) (lineIndex: int) (neighborCount: int) (lineCount: int) : Scene =
-    let random = Random seed
-    let lineCount = max 20 (min 20_000 lineCount)
-    let lines =
-        Array.init lineCount (fun _ ->
-            let x = random.NextDouble() * 100.0
-            let y = random.NextDouble() * 100.0
-            let angle = random.NextDouble() * Math.PI * 2.0
-            let length = 1.0 + random.NextDouble() * 4.0
-            Line2D (x, y, x + cos angle * length, y + sin angle * length))
+    let lines = createLines seed lineCount
     let rects = lines |> Array.map BRect.createFromLine
     let queryIndex = max 0 (min (lines.Length - 1) lineIndex)
     let count = max 1 (min 10 neighborCount)
@@ -180,5 +180,9 @@ let createScene (seed: int) (lineIndex: int) (neighborCount: int) (lineCount: in
         QueryIndex = queryIndex
         Neighbors = neighbors
         Visited = visited |> Array.map toRectangle
-        Performance = measureClosestLine lines queryIndex
     }
+
+let measurePerformance (seed: int) (lineIndex: int) (lineCount: int) : Performance =
+    let lines = createLines seed lineCount
+    let queryIndex = max 0 (min (lines.Length - 1) lineIndex)
+    measureClosestLine lines queryIndex

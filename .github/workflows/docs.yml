@@ -56,7 +56,7 @@ jobs:
           cp Test/svgVisualisation/{index.html,app.js,style.css} DocsGenerated/svgVisualisation/
           cp -R Test/svgVisualisation/dist DocsGenerated/svgVisualisation/
           mkdir -p DocsGenerated/nearestNeighboursVisualisation
-          cp Test/nearestNeighboursVisualisation/{index.html,app.js,style.css} DocsGenerated/nearestNeighboursVisualisation/
+          cp Test/nearestNeighboursVisualisation/{index.html,app.js,performanceWorker.js,style.css} DocsGenerated/nearestNeighboursVisualisation/
           cp -R Test/nearestNeighboursVisualisation/dist DocsGenerated/nearestNeighboursVisualisation/
 
       - name: Upload documentation html files
