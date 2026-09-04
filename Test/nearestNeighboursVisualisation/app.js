@@ -4,6 +4,7 @@ const svg = document.querySelector("#tree");
 const lineOutput = document.querySelector("#line");
 const summary = document.querySelector("#summary");
 const countInput = document.querySelector("#count");
+const lineCountInput = document.querySelector("#line-count");
 const previous = document.querySelector("#previous");
 const next = document.querySelector("#next");
 let seed = Date.now();
@@ -18,8 +19,11 @@ const element = (name, attributes) => {
 
 function render() {
   const count = Math.max(1, Math.min(10, Number.parseInt(countInput.value, 10) || 1));
+  const lineCount = Math.max(20, Math.min(20000, Number.parseInt(lineCountInput.value, 10) || 100));
   countInput.value = count;
-  scene = createScene(seed, lineIndex, count);
+  lineCountInput.value = lineCount;
+  lineIndex = Math.max(0, Math.min(lineCount - 1, lineIndex));
+  scene = createScene(seed, lineIndex, count, lineCount);
   const neighbors = new Map(scene.Neighbors.map((neighbor, rank) => [neighbor.Index, rank + 1]));
 
   svg.replaceChildren();
@@ -38,7 +42,9 @@ function render() {
   });
 
   lineOutput.value = `Line ${lineIndex + 1}/${scene.Lines.length}`;
-  summary.value = `${scene.Visited.length} BRects tested · distances ${scene.Neighbors.map((neighbor) => neighbor.Distance.toFixed(2)).join(", ")}`;
+  const performance = scene.Performance;
+  const speedup = performance.BruteForceMilliseconds / performance.BvhMilliseconds;
+  summary.value = `${scene.Visited.length} BRects tested · BVH ${performance.BvhMilliseconds.toFixed(3)} ms · brute force ${performance.BruteForceMilliseconds.toFixed(3)} ms · ${speedup.toFixed(1)}× (${performance.Iterations} runs)`;
   previous.disabled = lineIndex === 0;
   next.disabled = lineIndex === scene.Lines.length - 1;
 }
@@ -46,6 +52,7 @@ function render() {
 previous.addEventListener("click", () => { lineIndex--; render(); });
 next.addEventListener("click", () => { lineIndex++; render(); });
 countInput.addEventListener("change", render);
+lineCountInput.addEventListener("change", render);
 document.querySelector("#regenerate").addEventListener("click", () => {
   seed++;
   lineIndex = 0;
