@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LineBvh.Tree` exposing the underlying generic `Bvh<Line3D>`.
 
 ### Changed
+- The interactive SVG visualisation keeps the previous two tree depths visible with progressively faded outlines.
 - `Bvh2d<'T>` has its own 2D data structure now: its nodes store a `BRect` and all queries run directly on rectangles.
   - Before, it wrapped a `Bvh<'T>` of `BBox` with a zero Z range, which cost a third more memory per node and a third more arithmetic per distance test, and converted every query argument to 3D first.
   - The public API is unchanged, but the tree shape can differ where the split axis was picked differently.

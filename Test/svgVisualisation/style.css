@@ -7,3 +7,5 @@ button:disabled { opacity: .45; cursor: default; }
 output { min-width: 76px; text-align: center; }
 .line { stroke: #e7edf5; stroke-width: .45; vector-effect: non-scaling-stroke; }
 .node { fill: none; stroke: #55c3d9; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.node.age-1 { stroke-opacity: .55; }
+.node.age-2 { stroke-opacity: .25; }
