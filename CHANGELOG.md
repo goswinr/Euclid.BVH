@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An interactive SVG nearest-neighbour visualisation for stepping through random lines, selecting 1–10 neighbours and seeing the bounding rectangles tested by the search.
 
 ### Changed
+- The nearest-neighbour visualisation accepts 20–20,000 lines and compares per-query BVH performance with brute-force closest-line search.
 - The interactive SVG visualisation keeps the previous two tree depths visible with progressively faded outlines.
 - `Bvh2d<'T>` has its own 2D data structure now: its nodes store a `BRect` and all queries run directly on rectangles.
   - Before, it wrapped a `Bvh<'T>` of `BBox` with a zero Z range, which cost a third more memory per node and a third more arithmetic per distance test, and converted every query argument to 3D first.

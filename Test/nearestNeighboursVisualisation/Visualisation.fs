@@ -23,11 +23,18 @@ type Neighbor = {
     Distance: float
     }
 
+type Performance = {
+    BvhMilliseconds: float
+    BruteForceMilliseconds: float
+    Iterations: int
+    }
+
 type Scene = {
     Lines: Segment[]
     QueryIndex: int
     Neighbors: Neighbor[]
     Visited: Rectangle[]
+    Performance: Performance
     }
 
 type private Node = {
@@ -116,10 +123,47 @@ let private nearest (lines: Line2D[]) (rects: BRect[]) (root: Node) queryIndex n
     |> Seq.toArray,
     visited.ToArray()
 
-let createScene (seed: int) (lineIndex: int) (neighborCount: int) : Scene =
+let private measureClosestLine (lines: Line2D[]) queryIndex =
+    let query = lines.[queryIndex]
+    let bvh = LineBvh2d.create lines
+    let iterations = max 1 (2_000_000 / lines.Length)
+    let mutable bvhResult = struct (-1, Double.MaxValue)
+
+    let startedBvh = DateTime.UtcNow
+    for _ = 1 to iterations do
+        bvhResult <- bvh.ClosestLine (query, queryIndex)
+    let bvhMilliseconds = (DateTime.UtcNow - startedBvh).TotalMilliseconds / float iterations
+
+    let mutable bruteResult = struct (-1, Double.MaxValue)
+    let startedBruteForce = DateTime.UtcNow
+    for _ = 1 to iterations do
+        let mutable closestIndex = -1
+        let mutable closestSqDistance = Double.MaxValue
+        for i = 0 to lines.Length - 1 do
+            if i <> queryIndex then
+                let sqDistance = XLine2D.getSqDistance (query, lines.[i])
+                if sqDistance < closestSqDistance then
+                    closestIndex <- i
+                    closestSqDistance <- sqDistance
+        bruteResult <- struct (closestIndex, sqrt closestSqDistance)
+    let bruteForceMilliseconds = (DateTime.UtcNow - startedBruteForce).TotalMilliseconds / float iterations
+
+    let struct (_, bvhDistance) = bvhResult
+    let struct (_, bruteDistance) = bruteResult
+    if abs (bvhDistance - bruteDistance) > 1e-9 then
+        failwith $"BVH distance {bvhDistance} does not match brute-force distance {bruteDistance}."
+
+    {
+        BvhMilliseconds = bvhMilliseconds
+        BruteForceMilliseconds = bruteForceMilliseconds
+        Iterations = iterations
+    }
+
+let createScene (seed: int) (lineIndex: int) (neighborCount: int) (lineCount: int) : Scene =
     let random = Random seed
+    let lineCount = max 20 (min 20_000 lineCount)
     let lines =
-        Array.init 100 (fun _ ->
+        Array.init lineCount (fun _ ->
             let x = random.NextDouble() * 100.0
             let y = random.NextDouble() * 100.0
             let angle = random.NextDouble() * Math.PI * 2.0
@@ -136,4 +180,5 @@ let createScene (seed: int) (lineIndex: int) (neighborCount: int) : Scene =
         QueryIndex = queryIndex
         Neighbors = neighbors
         Visited = visited |> Array.map toRectangle
+        Performance = measureClosestLine lines queryIndex
     }
