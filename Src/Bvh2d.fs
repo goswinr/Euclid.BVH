@@ -59,7 +59,7 @@ module internal BvhUtil2d =
         // It is refilled for the range of each node, so that no per node array is needed:
         let keys = Array.zeroCreate<float> n
         // the count of nodes is known upfront, so the array is allocated at its exact size and filled in place:
-        let nodes = Array.zeroCreate<BvhNode2d> (BvhUtil.nodeCount n leafSize)
+        let nodes = Array.zeroCreateUndef<BvhNode2d> (BvhUtil.nodeCount n leafSize)
 
         let rectOf start count =
             let mutable r = rects.[idx.[start]]
@@ -111,7 +111,7 @@ module internal BvhUtil2d =
 /// as the distance between their bounding rectangles, and exact, where a distance function for the
 /// actual items is supplied. The bounding rectangle distance is always a valid lower bound of the
 /// exact distance, so it is used for branch and bound pruning in both cases.</summary>
-type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: BvhNode2d[], root: int) =
+type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], itemIndices: int[], nodes: BvhNode2d[], root: int) =
 
     /// The default maximum amount of items per leaf node.
     static member val DefaultLeafSize = 4 with get
@@ -126,7 +126,7 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: 
     member internal _.ItemIndices = itemIndices
 
     /// The count of items in this Bvh2d.
-    member _.Count = items.Length
+    member _.Count = items.Count
 
     /// The axis aligned bounding rectangle around all items in this Bvh2d.
     member _.Rectangle = nodes.[root].Rect
@@ -145,6 +145,11 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: 
         collect 0 root
         levels |> Seq.map (fun level -> level.ToArray()) |> Seq.toArray
 
+    /// Builds a Bvh2d from items and their already evaluated bounding rectangles.
+    static member internal createWithRects (items: Collections.Generic.IList<'T>, rects: BRect[], leafSize: int) : Bvh2d<'T> =
+        let idx, nodes, root = BvhUtil2d.build rects leafSize
+        Bvh2d<'T> (items, rects, idx, nodes, root)
+
     /// <summary>Builds a Bvh2d from the given items.
     /// The tree is built top-down by splitting at the median of the item-rectangle centers
     /// along the longer axis of the current bounding rectangle.</summary>
@@ -157,13 +162,8 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: 
         if isNull items then fail "Bvh2d.create: items array is null."
         if items.Length = 0 then fail "Bvh2d.create: items array is empty."
         let leafSize = if leafSize < 1 then Bvh2d<'T>.DefaultLeafSize else leafSize
-        let rects = Array.init items.Length (fun i -> getRect items.[i])
+        let rects = Array.map getRect items
         Bvh2d<'T>.createWithRects (items, rects, leafSize)
-
-    /// Builds a Bvh2d from items and their already evaluated bounding rectangles.
-    static member internal createWithRects (items: 'T[], rects: BRect[], leafSize: int) : Bvh2d<'T> =
-        let idx, nodes, root = BvhUtil2d.build rects leafSize
-        Bvh2d<'T> (items, rects, idx, nodes, root)
 
     /// <summary>Builds a Bvh2d from the given resizable array of items.</summary>
     /// <param name="items">The items to build the tree from. They are copied to an array at build time.</param>
@@ -173,7 +173,12 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: 
     /// <returns>A new immutable Bvh2d.</returns>
     static member create (items: ResizeArray<'T>, getRect: 'T -> BRect, [<OPT;DEF(0)>] leafSize: int) : Bvh2d<'T> =
         if isNull items then fail "Bvh2d.create: items ResizeArray is null."
-        Bvh2d<'T>.create (items.ToArray(), getRect, leafSize)
+        if items.Count = 0 then fail "Bvh2d.create: items ResizeArray is empty."
+        let leafSize = if leafSize < 1 then Bvh2d<'T>.DefaultLeafSize else leafSize
+        let rects = Array.zeroCreateUndef<BRect> items.Count
+        for i = 0 to items.Count - 1 do
+            rects.[i] <- getRect items.[i]
+        Bvh2d<'T>.createWithRects (items, rects, leafSize)
 
     /// <summary>Builds a Bvh2d from the given sequence of items.</summary>
     /// <param name="items">The items to build the tree from. They are enumerated and copied to an array at build time.</param>
@@ -332,9 +337,9 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: 
     /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
     /// <returns>A BvhPair with the indices of the two closest items and their distance.</returns>
     member bvh.ClosestPair (sqDistance: 'T -> 'T -> float) : BvhPair =
-        if items.Length < 2 then fail "Bvh2d.ClosestPair: needs at least two items."
+        if items.Count < 2 then fail "Bvh2d.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
-        for i = 0 to items.Length - 1 do
+        for i = 0 to items.Count - 1 do
             let struct (j, d) = bvh.ClosestItem (rects.[i], sqDistance items.[i], i)
             if d < best.Distance then
                 best <- { IdxA = min i j; IdxB = max i j; Distance = d }
@@ -344,9 +349,9 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: 
     /// The distance between two rectangles is 0.0 if they overlap or touch.</summary>
     /// <returns>A BvhPair with the indices of the two items and the distance between their rectangles.</returns>
     member bvh.ClosestPair () : BvhPair =
-        if items.Length < 2 then fail "Bvh2d.ClosestPair: needs at least two items."
+        if items.Count < 2 then fail "Bvh2d.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
-        for i = 0 to items.Length - 1 do
+        for i = 0 to items.Count - 1 do
             let struct (j, d) = bvh.ClosestRect (rects.[i], i)
             if d < best.Distance then
                 best <- { IdxA = min i j; IdxB = max i j; Distance = d }
@@ -358,8 +363,8 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: 
     /// <returns>An array of BvhPair. The entry at index i holds i as IdxA, the index of the
     /// nearest neighbor of item i as IdxB and the distance between them.</returns>
     member bvh.NearestNeighbors (sqDistance: 'T -> 'T -> float) : BvhPair[] =
-        if items.Length < 2 then fail "Bvh2d.NearestNeighbors: needs at least two items."
-        Array.init items.Length (fun i ->
+        if items.Count < 2 then fail "Bvh2d.NearestNeighbors: needs at least two items."
+        Array.init items.Count (fun i ->
             let struct (j, d) = bvh.ClosestItem (rects.[i], sqDistance items.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 
@@ -368,8 +373,8 @@ type Bvh2d<'T> private (items: 'T[], rects: BRect[], itemIndices: int[], nodes: 
     /// <returns>An array of BvhPair. The entry at index i holds i as IdxA, the index of the
     /// item with the nearest bounding rectangle as IdxB and the distance between the rectangles.</returns>
     member bvh.NearestNeighbors () : BvhPair[] =
-        if items.Length < 2 then fail "Bvh2d.NearestNeighbors: needs at least two items."
-        Array.init items.Length (fun i ->
+        if items.Count < 2 then fail "Bvh2d.NearestNeighbors: needs at least two items."
+        Array.init items.Count (fun i ->
             let struct (j, d) = bvh.ClosestRect (rects.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 

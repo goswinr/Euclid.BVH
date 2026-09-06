@@ -10,6 +10,20 @@ type internal OPT = Runtime.InteropServices.OptionalAttribute
 /// Shorthand for the DefaultParameterValueAttribute on method arguments.
 type internal DEF = Runtime.InteropServices.DefaultParameterValueAttribute
 
+
+module internal Array =
+
+    /// Just Array.zeroCreate<'T> in .NET, but when `UNCHECKED` is defined and used in Fable, it emits `new Array(len)`
+    /// without initializing the items to their default value.
+    /// Values are `undefined` in JavaScript
+    /// Not safe on numbers, Fable emits TypedArrays for numeric arrays.
+    let inline zeroCreateUndef<'T> (len:int) : 'T [] = //
+        #if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
+            Fable.Core.JsInterop.emitJsExpr (len) "new Array($0)"
+        #else
+            Array.zeroCreate<'T> len
+        #endif
+
 /// A result of a closest pair search in a Bvh tree.
 /// Holds the indices of the two items (into the input array) and the distance between them.
 [<Struct>]
@@ -37,6 +51,8 @@ type internal BvhNode = {
     /// The count of items in a leaf node. 0 or negative for internal nodes.
     Count: int
     }
+
+
 
 /// An internal module with functions shared by all Bvh instantiations.
 module internal BvhUtil =
@@ -122,7 +138,7 @@ module internal BvhUtil =
         // It is refilled for the range of each node, so that no per node array is needed:
         let keys = Array.zeroCreate<float> n
         // the count of nodes is known upfront, so the array is allocated at its exact size and filled in place:
-        let nodes = Array.zeroCreate<BvhNode> (nodeCount n leafSize)
+        let nodes = Array.zeroCreateUndef<BvhNode> (nodeCount n leafSize)
 
         let boxOf start count =
             let mutable b = boxes.[idx.[start]]
@@ -177,7 +193,7 @@ module internal BvhUtil =
 /// as the distance between their bounding boxes, and exact, where a distance function for the
 /// actual items is supplied. The bounding box distance is always a valid lower bound of the
 /// exact distance, so it is used for branch and bound pruning in both cases.</summary>
-type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: BvhNode[], root: int) =
+type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemIndices: int[], nodes: BvhNode[], root: int) =
 
     /// The default maximum amount of items per leaf node.
     static member val DefaultLeafSize = 4 with get
@@ -192,10 +208,15 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
     member internal _.ItemIndices = itemIndices
 
     /// The count of items in this Bvh.
-    member _.Count = items.Length
+    member _.Count = items.Count
 
     /// The axis aligned bounding box around all items in this Bvh.
     member _.Box = nodes.[root].Box
+
+    /// Builds a Bvh from items and their already evaluated bounding boxes.
+    static member internal createWithBoxes (items: Collections.Generic.IList<'T>, boxes: BBox[], leafSize: int) : Bvh<'T> =
+        let idx, nodes, root = BvhUtil.build boxes leafSize
+        Bvh<'T> (items, boxes, idx, nodes, root)
 
     /// <summary>Builds a Bvh from the given items.
     /// The tree is built top-down by splitting at the median of the item-box centers
@@ -209,13 +230,9 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
         if isNull items then fail "Bvh.create: items array is null."
         if items.Length = 0 then fail "Bvh.create: items array is empty."
         let leafSize = if leafSize < 1 then Bvh<'T>.DefaultLeafSize else leafSize
-        let boxes = Array.init items.Length (fun i -> getBox items.[i])
+        let boxes = Array.map getBox items
         Bvh<'T>.createWithBoxes (items, boxes, leafSize)
 
-    /// Builds a Bvh from items and their already evaluated bounding boxes.
-    static member internal createWithBoxes (items: 'T[], boxes: BBox[], leafSize: int) : Bvh<'T> =
-        let idx, nodes, root = BvhUtil.build boxes leafSize
-        Bvh<'T> (items, boxes, idx, nodes, root)
 
     /// <summary>Builds a Bvh from the given resizable array of items.</summary>
     /// <param name="items">The items to build the tree from. They are copied to an array at build time.</param>
@@ -225,7 +242,12 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
     /// <returns>A new immutable Bvh.</returns>
     static member create (items: ResizeArray<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
         if isNull items then fail "Bvh.create: items ResizeArray is null."
-        Bvh<'T>.create (items.ToArray(), getBox, leafSize)
+        if items.Count = 0 then fail "Bvh.create: items ResizeArray is empty."
+        let leafSize = if leafSize < 1 then Bvh<'T>.DefaultLeafSize else leafSize
+        let boxes = Array.zeroCreateUndef<BBox> items.Count
+        for i = 0 to items.Count - 1 do
+            boxes.[i] <- getBox items.[i]
+        Bvh<'T>.createWithBoxes (items, boxes, leafSize)
 
     /// <summary>Builds a Bvh from the given sequence of items.</summary>
     /// <param name="items">The items to build the tree from. They are enumerated and copied to an array at build time.</param>
@@ -385,9 +407,9 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
     /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
     /// <returns>A BvhPair with the indices of the two closest items and their distance.</returns>
     member bvh.ClosestPair (sqDistance: 'T -> 'T -> float) : BvhPair =
-        if items.Length < 2 then fail "Bvh.ClosestPair: needs at least two items."
+        if items.Count < 2 then fail "Bvh.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
-        for i = 0 to items.Length - 1 do
+        for i = 0 to items.Count - 1 do
             let struct (j, d) = bvh.ClosestItem (boxes.[i], sqDistance items.[i], i)
             if d < best.Distance then
                 best <- { IdxA = min i j; IdxB = max i j; Distance = d }
@@ -397,9 +419,9 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
     /// The distance between two boxes is 0.0 if they overlap or touch.</summary>
     /// <returns>A BvhPair with the indices of the two items and the distance between their boxes.</returns>
     member bvh.ClosestPair () : BvhPair =
-        if items.Length < 2 then fail "Bvh.ClosestPair: needs at least two items."
+        if items.Count < 2 then fail "Bvh.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
-        for i = 0 to items.Length - 1 do
+        for i = 0 to items.Count - 1 do
             let struct (j, d) = bvh.ClosestBox (boxes.[i], i)
             if d < best.Distance then
                 best <- { IdxA = min i j; IdxB = max i j; Distance = d }
@@ -411,8 +433,8 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
     /// <returns>An array of BvhPair. The entry at index i holds i as IdxA, the index of the
     /// nearest neighbor of item i as IdxB and the distance between them.</returns>
     member bvh.NearestNeighbors (sqDistance: 'T -> 'T -> float) : BvhPair[] =
-        if items.Length < 2 then fail "Bvh.NearestNeighbors: needs at least two items."
-        Array.init items.Length (fun i ->
+        if items.Count < 2 then fail "Bvh.NearestNeighbors: needs at least two items."
+        Array.init items.Count (fun i ->
             let struct (j, d) = bvh.ClosestItem (boxes.[i], sqDistance items.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 
@@ -421,8 +443,8 @@ type Bvh<'T> private (items: 'T[], boxes: BBox[], itemIndices: int[], nodes: Bvh
     /// <returns>An array of BvhPair. The entry at index i holds i as IdxA, the index of the
     /// item with the nearest bounding box as IdxB and the distance between the boxes.</returns>
     member bvh.NearestNeighbors () : BvhPair[] =
-        if items.Length < 2 then fail "Bvh.NearestNeighbors: needs at least two items."
-        Array.init items.Length (fun i ->
+        if items.Count < 2 then fail "Bvh.NearestNeighbors: needs at least two items."
+        Array.init items.Count (fun i ->
             let struct (j, d) = bvh.ClosestBox (boxes.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 
