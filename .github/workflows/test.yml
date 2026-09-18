@@ -44,6 +44,6 @@ jobs:
         run: npm ci
         working-directory: ./Test
 
-      - name: Run tests JS
+      - name: Run tests JS and check the TypeScript output
         run: npm test
         working-directory: ./Test

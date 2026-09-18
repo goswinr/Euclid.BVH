@@ -2,12 +2,9 @@ module TestBvh2d
 
 open Euclid
 open System
-
-#if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
-open Fable.Mocha
-#else
-open Expecto
-#endif
+open Scriptorium.Nib.Assertion
+open Asserts
+open type Scriptorium.Quill.Test
 
 /// A deterministic pseudo random generator so tests are repeatable.
 let private rand = Random 4242
@@ -83,16 +80,18 @@ let private randomDisks (count: int) : Disk[] =
         { Center = Pt (rand.NextDouble() * 100.0, rand.NextDouble() * 100.0)
           Radius = rand.NextDouble() * 1.5 })
 
+// testSequenced, not testList: the tests below share the module level 'rand', so they have
+// to run one after the other in declaration order to stay reproducible.
 let tests =
-    testList "Bvh2d" [
-        test "build evaluates every bounding rectangle once" {
+    testSequenced ("Bvh2d", [
+        test ("build evaluates every bounding rectangle once", fun _ ->
             let mutable calls = 0
             let rects = [| BRect.createXY (0., 0., 1., 1.); BRect.createXY (2., 0., 3., 1.) |]
             Bvh2d.create (rects, fun rect -> calls <- calls + 1; rect) |> ignore
-            Expect.equal calls rects.Length "bounding rectangle function is called once per item"
-        }
+            assertThat calls (tag "bounding rectangle function is called once per item" >> isEqualTo rects.Length)
+        )
 
-        test "closest rectangle matches planar distance" {
+        test ("closest rectangle matches planar distance", fun _ ->
             let rects =
                 [| BRect.createXY (0., 0., 1., 1.)
                    BRect.createXY (10., 0., 12., 1.)
@@ -100,36 +99,36 @@ let tests =
             let bvh = Bvh2d.createFromRects rects
             let query = BRect.createXY (2., 0., 3., 1.)
             let struct (idx, distance) = bvh.ClosestRect query
-            Expect.equal idx 0 "first rectangle is closest"
-            Expect.floatClose Accuracy.high distance (rectDistance query rects.[0]) "distance is planar"
-            Expect.isTrue (bvh.Rectangle.Contains rects.[0]) "tree rectangle contains items"
-        }
+            assertThat idx (tag "first rectangle is closest" >> isEqualTo 0)
+            assertThat distance (tag "distance is planar" >> isCloseTo (rectDistance query rects.[0]))
+            assertThat (bvh.Rectangle.Contains rects.[0]) (tag "tree rectangle contains items" >> isTrue)
+        )
 
-        test "rectangle pairs and point queries are planar" {
+        test ("rectangle pairs and point queries are planar", fun _ ->
             let rects =
                 [| BRect.createXY (0., 0., 1., 1.)
                    BRect.createXY (1.5, 0., 2.5, 1.)
                    BRect.createXY (10., 0., 11., 1.) |]
             let bvh = Bvh2d.createFromRects rects
             let pairs = bvh.ClosePairs 0.5 |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
-            Expect.equal pairs (Set.singleton (0, 1)) "only the nearby pair is returned"
+            assertThat pairs (tag "only the nearby pair is returned" >> isEqualTo (Set.singleton (0, 1)))
             let found = bvh.ItemsNearPoint (Pt (2., 0.5), 0.0) |> Set.ofSeq
-            Expect.equal found (Set.singleton 1) "point query finds containing rectangle"
-        }
+            assertThat found (tag "point query finds containing rectangle" >> isEqualTo (Set.singleton 1))
+        )
 
-        test "the tree rectangle is the union of all item rectangles" {
+        test ("the tree rectangle is the union of all item rectangles", fun _ ->
             let rects = randomRects 200
             let bvh = Bvh2d.createFromRects rects
             let all = rects |> Array.reduce (fun a b -> a.Union b)
-            Expect.floatClose Accuracy.high bvh.Rectangle.MinX all.MinX "MinX of the tree rectangle"
-            Expect.floatClose Accuracy.high bvh.Rectangle.MinY all.MinY "MinY of the tree rectangle"
-            Expect.floatClose Accuracy.high bvh.Rectangle.MaxX all.MaxX "MaxX of the tree rectangle"
-            Expect.floatClose Accuracy.high bvh.Rectangle.MaxY all.MaxY "MaxY of the tree rectangle"
-            Expect.equal bvh.Count rects.Length "the count of items"
-            Expect.equal bvh.Rects.Length rects.Length "one rectangle per item"
-        }
+            assertThat bvh.Rectangle.MinX (tag "MinX of the tree rectangle" >> isCloseTo all.MinX)
+            assertThat bvh.Rectangle.MinY (tag "MinY of the tree rectangle" >> isCloseTo all.MinY)
+            assertThat bvh.Rectangle.MaxX (tag "MaxX of the tree rectangle" >> isCloseTo all.MaxX)
+            assertThat bvh.Rectangle.MaxY (tag "MaxY of the tree rectangle" >> isCloseTo all.MaxY)
+            assertThat bvh.Count (tag "the count of items" >> isEqualTo rects.Length)
+            assertThat bvh.Rects.Length (tag "one rectangle per item" >> isEqualTo rects.Length)
+        )
 
-        test "closest rectangle to a query rectangle matches brute force" {
+        test ("closest rectangle to a query rectangle matches brute force", fun _ ->
             let rects = randomRects 300
             let bvh = Bvh2d.createFromRects rects
             for _ = 1 to 50 do
@@ -140,11 +139,11 @@ let tests =
                 let mutable bestD = Double.MaxValue
                 for i = 0 to rects.Length - 1 do
                     bestD <- min bestD (rectDistance query rects.[i])
-                Expect.floatClose Accuracy.high d bestD "the closest rectangle distance"
-                Expect.floatClose Accuracy.high (rectDistance query rects.[idx]) bestD "the reported index is at that distance"
-        }
+                assertThat d (tag "the closest rectangle distance" >> isCloseTo bestD)
+                assertThat (rectDistance query rects.[idx]) (tag "the reported index is at that distance" >> isCloseTo bestD)
+        )
 
-        test "closest rectangle to a query point matches brute force" {
+        test ("closest rectangle to a query point matches brute force", fun _ ->
             let rects = randomRects 300
             let bvh = Bvh2d.createFromRects rects
             for _ = 1 to 50 do
@@ -153,11 +152,11 @@ let tests =
                 let mutable bestD = Double.MaxValue
                 for i = 0 to rects.Length - 1 do
                     bestD <- min bestD (ptRectDistance pt rects.[i])
-                Expect.floatClose Accuracy.high d bestD "the closest rectangle distance to the point"
-                Expect.floatClose Accuracy.high (ptRectDistance pt rects.[idx]) bestD "the reported index is at that distance"
-        }
+                assertThat d (tag "the closest rectangle distance to the point" >> isCloseTo bestD)
+                assertThat (ptRectDistance pt rects.[idx]) (tag "the reported index is at that distance" >> isCloseTo bestD)
+        )
 
-        test "leaf size does not change the query results" {
+        test ("leaf size does not change the query results", fun _ ->
             let rects = randomRects 250
             let small = Bvh2d.createFromRects (rects, 1)
             let big = Bvh2d.createFromRects (rects, 16)
@@ -165,41 +164,41 @@ let tests =
                 let pt = Pt (rand.NextDouble() * 120.0 - 10.0, rand.NextDouble() * 120.0 - 10.0)
                 let struct (_, dSmall) = small.ClosestRect pt
                 let struct (_, dBig) = big.ClosestRect pt
-                Expect.floatClose Accuracy.high dSmall dBig "the same distance for any leaf size"
+                assertThat dSmall (tag "the same distance for any leaf size" >> isCloseTo dBig)
             let inRect = BRect.createXY (10., 10., 40., 40.)
             let a = small.ItemsInRect inRect |> Set.ofSeq
             let b = big.ItemsInRect inRect |> Set.ofSeq
-            Expect.equal a b "the same items in a rectangle for any leaf size"
-        }
+            assertThat a (tag "the same items in a rectangle for any leaf size" >> isEqualTo b)
+        )
 
-        test "nearest neighbors and closest pair match brute force" {
+        test ("nearest neighbors and closest pair match brute force", fun _ ->
             let rects = randomRects 200
             let bvh = Bvh2d.createFromRects rects
             let nn = bvh.NearestNeighbors ()
-            Expect.equal nn.Length rects.Length "one neighbor per item"
+            assertThat nn.Length (tag "one neighbor per item" >> isEqualTo rects.Length)
             for i = 0 to rects.Length - 1 do
                 let _, bestD = bruteNearest rects i
-                Expect.equal nn.[i].IdxA i "IdxA is the item itself"
-                Expect.floatClose Accuracy.high nn.[i].Distance bestD "the nearest neighbor distance"
-                Expect.floatClose Accuracy.high (rectDistance rects.[i] rects.[nn.[i].IdxB]) bestD "the reported neighbor is at that distance"
+                assertThat nn.[i].IdxA (tag "IdxA is the item itself" >> isEqualTo i)
+                assertThat nn.[i].Distance (tag "the nearest neighbor distance" >> isCloseTo bestD)
+                assertThat (rectDistance rects.[i] rects.[nn.[i].IdxB]) (tag "the reported neighbor is at that distance" >> isCloseTo bestD)
             let pair = bvh.ClosestPair ()
             let mutable bestD = Double.MaxValue
             for i = 0 to rects.Length - 1 do
                 for j = i + 1 to rects.Length - 1 do
                     bestD <- min bestD (rectDistance rects.[i] rects.[j])
-            Expect.floatClose Accuracy.high pair.Distance bestD "the closest pair distance"
-            Expect.isTrue (pair.IdxA < pair.IdxB) "the pair indices are ordered"
-        }
+            assertThat pair.Distance (tag "the closest pair distance" >> isCloseTo bestD)
+            assertThat (pair.IdxA < pair.IdxB) (tag "the pair indices are ordered" >> isTrue)
+        )
 
-        test "close pairs match brute force" {
+        test ("close pairs match brute force", fun _ ->
             let rects = randomRects 200
             let bvh = Bvh2d.createFromRects rects
             for maxDist in [ 0.0; 1.0; 5.0 ] do
                 let found = bvh.ClosePairs maxDist |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
-                Expect.equal found (brutePairs rects maxDist) $"all pairs closer than {maxDist}"
-        }
+                assertThat found (tag $"all pairs closer than {maxDist}" >> isEqualTo (brutePairs rects maxDist))
+        )
 
-        test "items in a rectangle and near a point match brute force" {
+        test ("items in a rectangle and near a point match brute force", fun _ ->
             let rects = randomRects 250
             let bvh = Bvh2d.createFromRects rects
             let query = BRect.createXY (20., 20., 45., 60.)
@@ -209,7 +208,7 @@ let tests =
                     seq { for i = 0 to rects.Length - 1 do
                             if rectDistance query rects.[i] <= tol then i }
                     |> Set.ofSeq
-                Expect.equal found expected $"items within {tol} of the query rectangle"
+                assertThat found (tag $"items within {tol} of the query rectangle" >> isEqualTo expected)
             let pt = Pt (33., 47.)
             for tol in [ 0.0; 4.0 ] do
                 let found = bvh.ItemsNearPoint (pt, tol) |> Set.ofSeq
@@ -217,10 +216,10 @@ let tests =
                     seq { for i = 0 to rects.Length - 1 do
                             if ptRectDistance pt rects.[i] <= tol then i }
                     |> Set.ofSeq
-                Expect.equal found expected $"items within {tol} of the query point"
-        }
+                assertThat found (tag $"items within {tol} of the query point" >> isEqualTo expected)
+        )
 
-        test "exact distance queries on a custom item type" {
+        test ("exact distance queries on a custom item type", fun _ ->
             let disks = randomDisks 150
             let bvh = Bvh2d.create (disks, diskRect)
             // the closest disk to a point, measured to the disk outline:
@@ -231,15 +230,15 @@ let tests =
                 let mutable bestD = Double.MaxValue
                 for i = 0 to disks.Length - 1 do
                     bestD <- min bestD (sqrt (sqDistTo disks.[i]))
-                Expect.floatClose Accuracy.high d bestD "the closest disk outline distance"
-                Expect.floatClose Accuracy.high (sqrt (sqDistTo disks.[idx])) bestD "the reported index is at that distance"
+                assertThat d (tag "the closest disk outline distance" >> isCloseTo bestD)
+                assertThat (sqrt (sqDistTo disks.[idx])) (tag "the reported index is at that distance" >> isCloseTo bestD)
             // the closest pair of disks, measured between the outlines:
             let pair = bvh.ClosestPair diskSqDist
             let mutable bestD = Double.MaxValue
             for i = 0 to disks.Length - 1 do
                 for j = i + 1 to disks.Length - 1 do
                     bestD <- min bestD (sqrt (diskSqDist disks.[i] disks.[j]))
-            Expect.floatClose Accuracy.high pair.Distance bestD "the closest pair of disks"
+            assertThat pair.Distance (tag "the closest pair of disks" >> isCloseTo bestD)
             // all pairs of disks closer than 1.0:
             let found = bvh.ClosePairs (1.0, diskSqDist) |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
             let expected =
@@ -247,28 +246,28 @@ let tests =
                         for j = i + 1 to disks.Length - 1 do
                             if sqrt (diskSqDist disks.[i] disks.[j]) <= 1.0 then i, j }
                 |> Set.ofSeq
-            Expect.equal found expected "all pairs of disks closer than 1.0"
-        }
+            assertThat found (tag "all pairs of disks closer than 1.0" >> isEqualTo expected)
+        )
 
-        test "a tree of a single item answers all queries" {
+        test ("a tree of a single item answers all queries", fun _ ->
             let rects = [| BRect.createXY (0., 0., 1., 1.) |]
             let bvh = Bvh2d.createFromRects rects
             let struct (idx, d) = bvh.ClosestRect (Pt (3., 1.))
-            Expect.equal idx 0 "the only item is the closest"
-            Expect.floatClose Accuracy.high d 2.0 "the distance to the only item"
-            Expect.equal (bvh.ItemsInRect (BRect.createXY (0.2, 0.2, 0.8, 0.8))).Count 1 "the only item is found"
-            Expect.equal (bvh.ClosePairs 100.0).Count 0 "a single item has no pairs"
-        }
+            assertThat idx (tag "the only item is the closest" >> isEqualTo 0)
+            assertThat d (tag "the distance to the only item" >> isCloseTo 2.0)
+            assertThat (bvh.ItemsInRect (BRect.createXY (0.2, 0.2, 0.8, 0.8))).Count (tag "the only item is found" >> isEqualTo 1)
+            assertThat (bvh.ClosePairs 100.0).Count (tag "a single item has no pairs" >> isEqualTo 0)
+        )
 
-        test "2D line wrapper uses rectangle bounds" {
+        test ("2D line wrapper uses rectangle bounds", fun _ ->
             let lines = [| Line2D (0., 0., 1., 0.); Line2D (5., 0., 6., 0.) |]
             let bvh = LineBvh2d.create lines
             let struct (idx, distance) = bvh.ClosestLine (Pt (0.5, 2.))
-            Expect.equal idx 0 "first line is closest"
-            Expect.floatClose Accuracy.high distance 2.0 "exact planar line distance"
-        }
+            assertThat idx (tag "first line is closest" >> isEqualTo 0)
+            assertThat distance (tag "exact planar line distance" >> isCloseTo 2.0)
+        )
 
-        test "2D line queries match brute force" {
+        test ("2D line queries match brute force", fun _ ->
             let lines =
                 Array.init 200 (fun _ ->
                     let x = rand.NextDouble() * 100.0
@@ -281,14 +280,14 @@ let tests =
                 let mutable bestD = Double.MaxValue
                 for i = 0 to lines.Length - 1 do
                     bestD <- min bestD (sqrt (lines.[i].SqDistanceToPt pt))
-                Expect.floatClose Accuracy.high d bestD "the closest line distance to a point"
-                Expect.floatClose Accuracy.high (sqrt (lines.[idx].SqDistanceToPt pt)) bestD "the reported line is at that distance"
-                Expect.floatClose Accuracy.high (bvh.ClosestPoint(pt).DistanceTo pt) bestD "the closest point is at that distance"
+                assertThat d (tag "the closest line distance to a point" >> isCloseTo bestD)
+                assertThat (sqrt (lines.[idx].SqDistanceToPt pt)) (tag "the reported line is at that distance" >> isCloseTo bestD)
+                assertThat (bvh.ClosestPoint(pt).DistanceTo pt) (tag "the closest point is at that distance" >> isCloseTo bestD)
             let pair = bvh.ClosestPair ()
             let mutable bestD = Double.MaxValue
             for i = 0 to lines.Length - 1 do
                 for j = i + 1 to lines.Length - 1 do
                     bestD <- min bestD (sqrt (XLine2D.getSqDistance (lines.[i], lines.[j])))
-            Expect.floatClose Accuracy.high pair.Distance bestD "the closest pair of lines"
-        }
-    ]
+            assertThat pair.Distance (tag "the closest pair of lines" >> isCloseTo bestD)
+        )
+    ])

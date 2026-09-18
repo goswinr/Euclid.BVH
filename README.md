@@ -314,8 +314,20 @@ dotnet build
 
 ## Test
 
+The test suite is written with [Scriptorium](https://fable-hub.github.io/Scriptorium/guides/getting-started/), so the same tests run on .NET and on the Fable targets.
+
+On .NET:
+
 ```bash
 dotnet run --project Test/Test.fsproj
+```
+
+On JavaScript, plus a TypeScript compile check of the library:
+
+```bash
+cd Test
+npm ci
+npm test
 ```
 
 The tests verify all queries against brute force implementations on randomized, clustered input.

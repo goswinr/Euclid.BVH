@@ -65,13 +65,15 @@ dotnet restore
 echo "SessionStart: restoring .NET local tools ..."
 dotnet tool restore
 
-# mocha and typescript for the Fable tests. `npm install` rather than `npm ci`
-# so that a cached node_modules is reused instead of being wiped.
+# typescript for the Fable TypeScript check. The JavaScript tests need no npm
+# package of their own, `dotnet fable --runScript` runs them on Node directly.
+# `npm install` rather than `npm ci` so that a cached node_modules is reused
+# instead of being wiped.
 if command -v npm > /dev/null 2>&1; then
-  echo "SessionStart: installing npm packages for the Fable tests ..."
+  echo "SessionStart: installing npm packages for the Fable TypeScript check ..."
   npm install --prefix "$PROJECT_DIR/Test"
 else
-  echo "SessionStart: npm is not available, skipping the Fable test dependencies."
+  echo "SessionStart: npm is not available, skipping the Fable TypeScript check dependencies."
 fi
 
 echo "SessionStart: ready. dotnet build and dotnet run --project Test/Test.fsproj will work now."

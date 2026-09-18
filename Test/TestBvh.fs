@@ -2,12 +2,9 @@ module TestBvh
 
 open Euclid
 open System
-
-#if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
-open Fable.Mocha
-#else
-open Expecto
-#endif
+open Scriptorium.Nib.Assertion
+open Asserts
+open type Scriptorium.Quill.Test
 
 /// A deterministic pseudo random generator so tests are repeatable.
 let private rand = Random 4242
@@ -77,35 +74,37 @@ let private randomBalls (count: int) : Ball[] =
         { Center = Pnt (rand.NextDouble() * 100.0, rand.NextDouble() * 100.0, rand.NextDouble() * 20.0)
           Radius = rand.NextDouble() * 1.5 })
 
+// testSequenced, not testList: the tests below share the module level 'rand', so they have
+// to run one after the other in declaration order to stay reproducible.
 let tests =
-    testList "Bvh" [
+    testSequenced ("Bvh", [
 
-        test "createFromBoxes fails on empty input" {
-            Expect.throws (fun () -> Bvh.createFromBoxes [||] |> ignore) "empty input should throw"
-        }
+        test ("createFromBoxes fails on empty input", fun _ ->
+            assertThat (fun () -> Bvh.createFromBoxes [||] |> ignore) (tag "empty input should throw" >> throws)
+        )
 
-        test "create accepts ResizeArray and seq inputs" {
+        test ("create accepts ResizeArray and seq inputs", fun _ ->
             let balls = randomBalls 10
             let fromResizeArray = Bvh.create (ResizeArray balls, ballBox)
             let fromSeq = Bvh.create (balls |> Seq.map id, ballBox)
-            Expect.equal fromResizeArray.Count balls.Length "ResizeArray count"
-            Expect.equal fromSeq.Count balls.Length "sequence count"
+            assertThat fromResizeArray.Count (tag "ResizeArray count" >> isEqualTo balls.Length)
+            assertThat fromSeq.Count (tag "sequence count" >> isEqualTo balls.Length)
             for i = 0 to balls.Length - 1 do
-                Expect.isTrue (obj.ReferenceEquals (fromResizeArray.Items.[i], balls.[i])) "ResizeArray items"
-                Expect.isTrue (obj.ReferenceEquals (fromSeq.Items.[i], balls.[i])) "sequence items"
-        }
+                assertThat (obj.ReferenceEquals (fromResizeArray.Items.[i], balls.[i])) (tag "ResizeArray items" >> isTrue)
+                assertThat (obj.ReferenceEquals (fromSeq.Items.[i], balls.[i])) (tag "sequence items" >> isTrue)
+        )
 
-        test "single box tree" {
+        test ("single box tree", fun _ ->
             let boxes = [| BBox.createFromSeq [ Pnt (0., 0., 0.); Pnt (1., 1., 1.) ] |]
             let bvh = Bvh.createFromBoxes boxes
-            Expect.equal bvh.Count 1 "count"
+            assertThat bvh.Count (tag "count" >> isEqualTo 1)
             let queryBox = BBox.createFromSeq [ Pnt (0., 3., 0.); Pnt (1., 4., 1.) ]
             let struct (i, d) = bvh.ClosestBox queryBox
-            Expect.equal i 0 "closest index"
-            Expect.floatClose Accuracy.high d 2.0 "closest box distance"
-        }
+            assertThat i (tag "closest index" >> isEqualTo 0)
+            assertThat d (tag "closest box distance" >> isCloseTo 2.0)
+        )
 
-        test "closest box matches brute force" {
+        test ("closest box matches brute force", fun _ ->
             let boxes = randomBoxes 500
             let bvh = Bvh.createFromBoxes boxes
             let queryBox = BBox.createFromSeq [ Pnt (10., 10., 5.); Pnt (15., 12., 6.) ]
@@ -113,19 +112,19 @@ let tests =
             let mutable bestD = Double.MaxValue
             for b in boxes do
                 bestD <- min bestD (boxDist queryBox b)
-            Expect.floatClose Accuracy.high d bestD "closest box distance should match brute force"
-        }
+            assertThat d (tag "closest box distance should match brute force" >> isCloseTo bestD)
+        )
 
-        test "nearest neighbor box of each box matches brute force" {
+        test ("nearest neighbor box of each box matches brute force", fun _ ->
             let boxes = randomBoxes 300
             let bvh = Bvh.createFromBoxes boxes
             for i = 0 to boxes.Length - 1 do
                 let struct (_, d) = bvh.ClosestBox (boxes.[i], i)
                 let _, bd = bruteNearest boxes i
-                Expect.floatClose Accuracy.high d bd $"nearest neighbor box distance of box {i}"
-        }
+                assertThat d (tag $"nearest neighbor box distance of box {i}" >> isCloseTo bd)
+        )
 
-        test "box based closest pair matches brute force" {
+        test ("box based closest pair matches brute force", fun _ ->
             let boxes = randomBoxes 400
             let bvh = Bvh.createFromBoxes boxes
             let pair = bvh.ClosestPair ()
@@ -133,22 +132,22 @@ let tests =
             for i = 0 to boxes.Length - 1 do
                 for j = i + 1 to boxes.Length - 1 do
                     bd <- min bd (boxDist boxes.[i] boxes.[j])
-            Expect.floatClose Accuracy.high pair.Distance bd "closest pair box distance should match brute force"
-            Expect.isTrue (pair.IdxA < pair.IdxB) "pair indices should be ordered"
-        }
+            assertThat pair.Distance (tag "closest pair box distance should match brute force" >> isCloseTo bd)
+            assertThat (pair.IdxA < pair.IdxB) (tag "pair indices should be ordered" >> isTrue)
+        )
 
-        test "box based nearest neighbors match brute force" {
+        test ("box based nearest neighbors match brute force", fun _ ->
             let boxes = randomBoxes 200
             let bvh = Bvh.createFromBoxes boxes
             let nns = bvh.NearestNeighbors ()
-            Expect.equal nns.Length boxes.Length "one entry per box"
+            assertThat nns.Length (tag "one entry per box" >> isEqualTo boxes.Length)
             for i = 0 to boxes.Length - 1 do
                 let _, bd = bruteNearest boxes i
-                Expect.equal nns.[i].IdxA i "IdxA is the box itself"
-                Expect.floatClose Accuracy.high nns.[i].Distance bd $"nearest neighbor box distance of box {i}"
-        }
+                assertThat nns.[i].IdxA (tag "IdxA is the box itself" >> isEqualTo i)
+                assertThat nns.[i].Distance (tag $"nearest neighbor box distance of box {i}" >> isCloseTo bd)
+        )
 
-        test "box based close pairs match brute force" {
+        test ("box based close pairs match brute force", fun _ ->
             let boxes = randomBoxes 300
             let bvh = Bvh.createFromBoxes boxes
             let maxDist = 2.5
@@ -157,10 +156,10 @@ let tests =
                 |> Seq.map (fun p -> p.IdxA, p.IdxB)
                 |> Set.ofSeq
             let brute = brutePairs boxes maxDist
-            Expect.equal pairs brute "box pairs within tolerance should match brute force"
-        }
+            assertThat pairs (tag "box pairs within tolerance should match brute force" >> isEqualTo brute)
+        )
 
-        test "overlapping boxes found with zero tolerance" {
+        test ("overlapping boxes found with zero tolerance", fun _ ->
             let boxes = randomBoxes 300
             let bvh = Bvh.createFromBoxes boxes
             let pairs =
@@ -168,10 +167,10 @@ let tests =
                 |> Seq.map (fun p -> p.IdxA, p.IdxB)
                 |> Set.ofSeq
             let brute = brutePairs boxes 0.0
-            Expect.equal pairs brute "overlapping box pairs should match brute force"
-        }
+            assertThat pairs (tag "overlapping box pairs should match brute force" >> isEqualTo brute)
+        )
 
-        test "items in box matches brute force" {
+        test ("items in box matches brute force", fun _ ->
             let boxes = randomBoxes 300
             let bvh = Bvh.createFromBoxes boxes
             let box = BBox.createFromSeq [ Pnt (20., 20., 0.); Pnt (60., 60., 20.) ]
@@ -180,10 +179,10 @@ let tests =
                 seq { for i = 0 to boxes.Length - 1 do
                         if sqBoxDist box boxes.[i] <= 0.0 then i }
                 |> Set.ofSeq
-            Expect.equal found brute "items in box should match brute force"
-        }
+            assertThat found (tag "items in box should match brute force" >> isEqualTo brute)
+        )
 
-        test "generic create with custom items and exact distance" {
+        test ("generic create with custom items and exact distance", fun _ ->
             let balls = randomBalls 300
             let bvh = Bvh.create (balls, ballBox)
             // exact closest pair via callback, compared to brute force:
@@ -192,10 +191,10 @@ let tests =
             for i = 0 to balls.Length - 1 do
                 for j = i + 1 to balls.Length - 1 do
                     bd <- min bd (sqrt (ballSqDist balls.[i] balls.[j]))
-            Expect.floatClose Accuracy.high pair.Distance bd "exact closest ball pair should match brute force"
-        }
+            assertThat pair.Distance (tag "exact closest ball pair should match brute force" >> isCloseTo bd)
+        )
 
-        test "generic close pairs with exact distance match brute force" {
+        test ("generic close pairs with exact distance match brute force", fun _ ->
             let balls = randomBalls 300
             let bvh = Bvh.create (balls, ballBox)
             let maxDist = 2.0
@@ -208,10 +207,10 @@ let tests =
                         for j = i + 1 to balls.Length - 1 do
                             if sqrt (ballSqDist balls.[i] balls.[j]) <= maxDist then (i, j) }
                 |> Set.ofSeq
-            Expect.equal pairs brute "exact ball pairs within tolerance should match brute force"
-        }
+            assertThat pairs (tag "exact ball pairs within tolerance should match brute force" >> isEqualTo brute)
+        )
 
-        test "closest item with exact distance matches brute force" {
+        test ("closest item with exact distance matches brute force", fun _ ->
             let balls = randomBalls 300
             let bvh = Bvh.create (balls, ballBox)
             let query = { Center = Pnt (50., 50., 10.); Radius = 1.0 }
@@ -219,10 +218,10 @@ let tests =
             let mutable bd = Double.MaxValue
             for b in balls do
                 bd <- min bd (sqrt (ballSqDist query b))
-            Expect.floatClose Accuracy.high d bd "closest ball distance should match brute force"
-        }
+            assertThat d (tag "closest ball distance should match brute force" >> isCloseTo bd)
+        )
 
-        test "different leaf sizes give the same result" {
+        test ("different leaf sizes give the same result", fun _ ->
             let boxes = randomBoxes 250
             let queryBox = BBox.createFromSeq [ Pnt (50., 50., 10.); Pnt (55., 52., 11.) ]
             let results =
@@ -232,17 +231,17 @@ let tests =
                     let struct (_, d) = bvh.ClosestBox queryBox
                     d)
             for d in results do
-                Expect.floatClose Accuracy.high d results.Head "distance should not depend on leaf size"
-        }
+                assertThat d (tag "distance should not depend on leaf size" >> isCloseTo results.Head)
+        )
 
-        test "tree box contains all item boxes" {
+        test ("tree box contains all item boxes", fun _ ->
             let boxes = randomBoxes 100
             let bvh = Bvh.createFromBoxes boxes
             for b in boxes do
-                Expect.isTrue (bvh.Box.Contains b) "tree box should contain every item box"
-        }
+                assertThat (bvh.Box.Contains b) (tag "tree box should contain every item box" >> isTrue)
+        )
 
-        test "closest box to point matches brute force" {
+        test ("closest box to point matches brute force", fun _ ->
             let boxes = randomBoxes 400
             let bvh = Bvh.createFromBoxes boxes
             let pt = Pnt (42., 61., 7.)
@@ -251,10 +250,10 @@ let tests =
             let mutable bestD = Double.MaxValue
             for b in boxes do
                 bestD <- min bestD (boxDist queryBox b)
-            Expect.floatClose Accuracy.high d bestD "closest box distance to point should match brute force"
-        }
+            assertThat d (tag "closest box distance to point should match brute force" >> isCloseTo bestD)
+        )
 
-        test "closest item to point with exact distance matches brute force" {
+        test ("closest item to point with exact distance matches brute force", fun _ ->
             let balls = randomBalls 300
             let bvh = Bvh.create (balls, ballBox)
             let pt = Pnt (50., 50., 10.)
@@ -265,10 +264,10 @@ let tests =
             let mutable bestD = Double.MaxValue
             for b in balls do
                 bestD <- min bestD (sqrt (sqDistTo b))
-            Expect.floatClose Accuracy.high d bestD "closest ball distance to point should match brute force"
-        }
+            assertThat d (tag "closest ball distance to point should match brute force" >> isCloseTo bestD)
+        )
 
-        test "items near point match brute force" {
+        test ("items near point match brute force", fun _ ->
             let boxes = randomBoxes 300
             let bvh = Bvh.createFromBoxes boxes
             let pt = Pnt (50., 50., 10.)
@@ -279,21 +278,21 @@ let tests =
                 seq { for i = 0 to boxes.Length - 1 do
                         if boxDist queryBox boxes.[i] <= tol then i }
                 |> Set.ofSeq
-            Expect.equal found brute "items near point should match brute force"
-        }
+            assertThat found (tag "items near point should match brute force" >> isEqualTo brute)
+        )
 
-        test "items near point with zero tolerance finds containing boxes" {
+        test ("items near point with zero tolerance finds containing boxes", fun _ ->
             let boxes = randomBoxes 300
             let bvh = Bvh.createFromBoxes boxes
             // use the center of the first box, it is guaranteed to be inside it:
             let pt = boxes.[0].Center
             let found = bvh.ItemsNearPoint pt |> Set.ofSeq
-            Expect.isTrue (found.Contains 0) "the containing box should be found"
+            assertThat (found.Contains 0) (tag "the containing box should be found" >> isTrue)
             let queryBox = BBox.createFromSeq [ pt ]
             let brute =
                 seq { for i = 0 to boxes.Length - 1 do
                         if boxDist queryBox boxes.[i] <= 0.0 then i }
                 |> Set.ofSeq
-            Expect.equal found brute "containing boxes should match brute force"
-        }
-    ]
+            assertThat found (tag "containing boxes should match brute force" >> isEqualTo brute)
+        )
+    ])

@@ -2,12 +2,9 @@ module TestLineBvh
 
 open Euclid
 open System
-
-#if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
-open Fable.Mocha
-#else
-open Expecto
-#endif
+open Scriptorium.Nib.Assertion
+open Asserts
+open type Scriptorium.Quill.Test
 
 /// A deterministic pseudo random generator so tests are repeatable.
 let private rand = Random 42
@@ -72,23 +69,25 @@ let private brutePairs (lines: Line3D[]) (maxDist: float) : Set<int * int> =
                 result <- result.Add (i, j)
     result
 
+// testSequenced, not testList: the tests below share the module level 'rand', so they have
+// to run one after the other in declaration order to stay reproducible.
 let tests =
-    testList "LineBvh" [
+    testSequenced ("LineBvh", [
 
-        test "create fails on empty input" {
-            Expect.throws (fun () -> LineBvh.create [||] |> ignore) "empty input should throw"
-        }
+        test ("create fails on empty input", fun _ ->
+            assertThat (fun () -> LineBvh.create [||] |> ignore) (tag "empty input should throw" >> throws)
+        )
 
-        test "single line tree" {
+        test ("single line tree", fun _ ->
             let lines = [| Line3D (0., 0., 0., 1., 0., 0.) |]
             let bvh = LineBvh.create lines
-            Expect.equal bvh.Count 1 "count"
+            assertThat bvh.Count (tag "count" >> isEqualTo 1)
             let struct (i, d) = bvh.ClosestLine (Line3D (0., 2., 0., 1., 2., 0.))
-            Expect.equal i 0 "closest index"
-            Expect.floatClose Accuracy.high d 2.0 "closest distance"
-        }
+            assertThat i (tag "closest index" >> isEqualTo 0)
+            assertThat d (tag "closest distance" >> isCloseTo 2.0)
+        )
 
-        test "closest line matches brute force" {
+        test ("closest line matches brute force", fun _ ->
             let lines = randomLines 500
             let bvh = LineBvh.create lines
             let query = Line3D (10., 10., 5., 15., 12., 6.)
@@ -96,39 +95,39 @@ let tests =
             let mutable bestD = Double.MaxValue
             for l in lines do
                 bestD <- min bestD (dist query l)
-            Expect.floatClose Accuracy.high d bestD "closest distance should match brute force"
-        }
+            assertThat d (tag "closest distance should match brute force" >> isCloseTo bestD)
+        )
 
-        test "nearest neighbor of each line matches brute force" {
+        test ("nearest neighbor of each line matches brute force", fun _ ->
             let lines = randomLines 300
             let bvh = LineBvh.create lines
             for i = 0 to lines.Length - 1 do
                 let struct (_, d) = bvh.ClosestLine (lines.[i], i)
                 let _, bd = bruteNearest lines i
-                Expect.floatClose Accuracy.high d bd $"nearest neighbor distance of line {i}"
-        }
+                assertThat d (tag $"nearest neighbor distance of line {i}" >> isCloseTo bd)
+        )
 
-        test "closest pair matches brute force" {
+        test ("closest pair matches brute force", fun _ ->
             let lines = randomLines 400
             let bvh = LineBvh.create lines
             let pair = bvh.ClosestPair ()
             let _, _, bd = bruteClosestPair lines
-            Expect.floatClose Accuracy.high pair.Distance bd "closest pair distance should match brute force"
-            Expect.isTrue (pair.IdxA < pair.IdxB) "pair indices should be ordered"
-        }
+            assertThat pair.Distance (tag "closest pair distance should match brute force" >> isCloseTo bd)
+            assertThat (pair.IdxA < pair.IdxB) (tag "pair indices should be ordered" >> isTrue)
+        )
 
-        test "nearest neighbors array matches brute force" {
+        test ("nearest neighbors array matches brute force", fun _ ->
             let lines = randomLines 200
             let bvh = LineBvh.create lines
             let nns = bvh.NearestNeighbors ()
-            Expect.equal nns.Length lines.Length "one entry per line"
+            assertThat nns.Length (tag "one entry per line" >> isEqualTo lines.Length)
             for i = 0 to lines.Length - 1 do
                 let _, bd = bruteNearest lines i
-                Expect.equal nns.[i].IdxA i "IdxA is the line itself"
-                Expect.floatClose Accuracy.high nns.[i].Distance bd $"nearest neighbor distance of line {i}"
-        }
+                assertThat nns.[i].IdxA (tag "IdxA is the line itself" >> isEqualTo i)
+                assertThat nns.[i].Distance (tag $"nearest neighbor distance of line {i}" >> isCloseTo bd)
+        )
 
-        test "close pairs match brute force" {
+        test ("close pairs match brute force", fun _ ->
             let lines = randomLines 300
             let bvh = LineBvh.create lines
             let maxDist = 2.5
@@ -137,24 +136,24 @@ let tests =
                 |> Seq.map (fun p -> p.IdxA, p.IdxB)
                 |> Set.ofSeq
             let brute = brutePairs lines maxDist
-            Expect.equal pairs brute "pairs within tolerance should match brute force"
-        }
+            assertThat pairs (tag "pairs within tolerance should match brute force" >> isEqualTo brute)
+        )
 
-        test "close pairs has no duplicates" {
+        test ("close pairs has no duplicates", fun _ ->
             let lines = randomLines 300
             let bvh = LineBvh.create lines
             let pairs = bvh.ClosePairs 5.0
             let distinct = pairs |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
-            Expect.equal pairs.Count distinct.Count "no duplicate pairs"
-        }
+            assertThat pairs.Count (tag "no duplicate pairs" >> isEqualTo distinct.Count)
+        )
 
-        test "close pairs with negative tolerance fails" {
+        test ("close pairs with negative tolerance fails", fun _ ->
             let lines = randomLines 10
             let bvh = LineBvh.create lines
-            Expect.throws (fun () -> bvh.ClosePairs -1.0 |> ignore) "negative tolerance should throw"
-        }
+            assertThat (fun () -> bvh.ClosePairs -1.0 |> ignore) (tag "negative tolerance should throw" >> throws)
+        )
 
-        test "lines in box matches brute force" {
+        test ("lines in box matches brute force", fun _ ->
             let lines = randomLines 300
             let bvh = LineBvh.create lines
             let box = BBox.createFromSeq [ Pnt (20., 20., 0.); Pnt (60., 60., 20.) ]
@@ -163,10 +162,10 @@ let tests =
                 seq { for i = 0 to lines.Length - 1 do
                         if sqBoxDist box (BBox.createFromLine lines.[i]) <= 0.0 then i }
                 |> Set.ofSeq
-            Expect.equal found brute "lines in box should match brute force"
-        }
+            assertThat found (tag "lines in box should match brute force" >> isEqualTo brute)
+        )
 
-        test "different leaf sizes give the same result" {
+        test ("different leaf sizes give the same result", fun _ ->
             let lines = randomLines 250
             let query = Line3D (50., 50., 10., 55., 52., 11.)
             let results =
@@ -176,17 +175,17 @@ let tests =
                     let struct (_, d) = bvh.ClosestLine query
                     d)
             for d in results do
-                Expect.floatClose Accuracy.high d results.Head "distance should not depend on leaf size"
-        }
+                assertThat d (tag "distance should not depend on leaf size" >> isCloseTo results.Head)
+        )
 
-        test "tree box contains all lines" {
+        test ("tree box contains all lines", fun _ ->
             let lines = randomLines 100
             let bvh = LineBvh.create lines
             for l in lines do
-                Expect.isTrue (bvh.Box.Contains (BBox.createFromLine l)) "tree box should contain every line box"
-        }
+                assertThat (bvh.Box.Contains (BBox.createFromLine l)) (tag "tree box should contain every line box" >> isTrue)
+        )
 
-        test "closest line to point matches brute force" {
+        test ("closest line to point matches brute force", fun _ ->
             let lines = randomLines 500
             let bvh = LineBvh.create lines
             let pt = Pnt (42., 61., 7.)
@@ -198,22 +197,22 @@ let tests =
                 if dj < bestD then
                     bestD <- dj
                     bestI <- j
-            Expect.floatClose Accuracy.high d bestD "closest line distance to point should match brute force"
-            Expect.equal i bestI "closest line index should match brute force"
-        }
+            assertThat d (tag "closest line distance to point should match brute force" >> isCloseTo bestD)
+            assertThat i (tag "closest line index should match brute force" >> isEqualTo bestI)
+        )
 
-        test "closest line to point with skip index" {
+        test ("closest line to point with skip index", fun _ ->
             let lines = randomLines 200
             let bvh = LineBvh.create lines
             let pt = lines.[7].From // on line 7 itself
             let struct (i0, d0) = bvh.ClosestLine pt
-            Expect.equal i0 7 "without skip, line 7 itself is closest"
-            Expect.floatClose Accuracy.high d0 0.0 "distance to own start point is zero"
+            assertThat i0 (tag "without skip, line 7 itself is closest" >> isEqualTo 7)
+            assertThat d0 (tag "distance to own start point is zero" >> isCloseTo 0.0)
             let struct (i1, _) = bvh.ClosestLine (pt, 7)
-            Expect.notEqual i1 7 "with skip, another line is found"
-        }
+            assertThat i1 (tag "with skip, another line is found" >> isNotEqualTo 7)
+        )
 
-        test "closest point on lines matches brute force" {
+        test ("closest point on lines matches brute force", fun _ ->
             let lines = randomLines 300
             let bvh = LineBvh.create lines
             let pt = Pnt (33., 44., 11.)
@@ -221,10 +220,10 @@ let tests =
             let mutable bestD = Double.MaxValue
             for l in lines do
                 bestD <- min bestD (sqrt (l.SqDistanceToPnt pt))
-            Expect.floatClose Accuracy.high (cp.DistanceTo pt) bestD "closest point distance should match brute force"
-        }
+            assertThat (cp.DistanceTo pt) (tag "closest point distance should match brute force" >> isCloseTo bestD)
+        )
 
-        test "lines near point match brute force" {
+        test ("lines near point match brute force", fun _ ->
             let lines = randomLines 300
             let bvh = LineBvh.create lines
             let pt = Pnt (50., 50., 10.)
@@ -235,6 +234,6 @@ let tests =
                 seq { for i = 0 to lines.Length - 1 do
                         if sqrt (sqBoxDist queryBox (BBox.createFromLine lines.[i])) <= tol then i }
                 |> Set.ofSeq
-            Expect.equal found brute "lines near point should match brute force"
-        }
-    ]
+            assertThat found (tag "lines near point should match brute force" >> isEqualTo brute)
+        )
+    ])
