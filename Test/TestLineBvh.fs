@@ -6,11 +6,12 @@ open Scriptorium.Nib.Assertion
 open Asserts
 open type Scriptorium.Quill.Test
 
-/// A deterministic pseudo random generator so tests are repeatable.
-let private rand = Random 42
+// Every test below creates its own seeded generator instead of sharing one. That keeps
+// each test repeatable on its own, whatever order the tests run in and whichever of them
+// run at all, and the seeds differ per test so they do not all see the same input.
 
 /// Creates random lines, clustered unevenly in space to mimic real world input.
-let private randomLines (count: int) : Line3D[] =
+let private randomLines (rand: Random) (count: int) : Line3D[] =
     Array.init count (fun _ ->
         // random cluster center, then a short line near it:
         let cx = rand.NextDouble() * 100.0
@@ -69,10 +70,8 @@ let private brutePairs (lines: Line3D[]) (maxDist: float) : Set<int * int> =
                 result <- result.Add (i, j)
     result
 
-// testSequenced, not testList: the tests below share the module level 'rand', so they have
-// to run one after the other in declaration order to stay reproducible.
 let tests =
-    testSequenced ("LineBvh", [
+    testList ("LineBvh", [
 
         test ("create fails on empty input", fun _ ->
             assertThat (fun () -> LineBvh.create [||] |> ignore) (tag "empty input should throw" >> throws)
@@ -88,7 +87,8 @@ let tests =
         )
 
         test ("closest line matches brute force", fun _ ->
-            let lines = randomLines 500
+            let rand = Random 3001
+            let lines = randomLines rand 500
             let bvh = LineBvh.create lines
             let query = Line3D (10., 10., 5., 15., 12., 6.)
             let struct (_, d) = bvh.ClosestLine query
@@ -99,7 +99,8 @@ let tests =
         )
 
         test ("nearest neighbor of each line matches brute force", fun _ ->
-            let lines = randomLines 300
+            let rand = Random 3002
+            let lines = randomLines rand 300
             let bvh = LineBvh.create lines
             for i = 0 to lines.Length - 1 do
                 let struct (_, d) = bvh.ClosestLine (lines.[i], i)
@@ -108,7 +109,8 @@ let tests =
         )
 
         test ("closest pair matches brute force", fun _ ->
-            let lines = randomLines 400
+            let rand = Random 3003
+            let lines = randomLines rand 400
             let bvh = LineBvh.create lines
             let pair = bvh.ClosestPair ()
             let _, _, bd = bruteClosestPair lines
@@ -117,7 +119,8 @@ let tests =
         )
 
         test ("nearest neighbors array matches brute force", fun _ ->
-            let lines = randomLines 200
+            let rand = Random 3004
+            let lines = randomLines rand 200
             let bvh = LineBvh.create lines
             let nns = bvh.NearestNeighbors ()
             assertThat nns.Length (tag "one entry per line" >> isEqualTo lines.Length)
@@ -128,7 +131,8 @@ let tests =
         )
 
         test ("close pairs match brute force", fun _ ->
-            let lines = randomLines 300
+            let rand = Random 3005
+            let lines = randomLines rand 300
             let bvh = LineBvh.create lines
             let maxDist = 2.5
             let pairs =
@@ -140,7 +144,8 @@ let tests =
         )
 
         test ("close pairs has no duplicates", fun _ ->
-            let lines = randomLines 300
+            let rand = Random 3006
+            let lines = randomLines rand 300
             let bvh = LineBvh.create lines
             let pairs = bvh.ClosePairs 5.0
             let distinct = pairs |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
@@ -148,13 +153,15 @@ let tests =
         )
 
         test ("close pairs with negative tolerance fails", fun _ ->
-            let lines = randomLines 10
+            let rand = Random 3007
+            let lines = randomLines rand 10
             let bvh = LineBvh.create lines
             assertThat (fun () -> bvh.ClosePairs -1.0 |> ignore) (tag "negative tolerance should throw" >> throws)
         )
 
         test ("lines in box matches brute force", fun _ ->
-            let lines = randomLines 300
+            let rand = Random 3008
+            let lines = randomLines rand 300
             let bvh = LineBvh.create lines
             let box = BBox.createFromSeq [ Pnt (20., 20., 0.); Pnt (60., 60., 20.) ]
             let found = bvh.LinesInBox box |> Set.ofSeq
@@ -166,7 +173,8 @@ let tests =
         )
 
         test ("different leaf sizes give the same result", fun _ ->
-            let lines = randomLines 250
+            let rand = Random 3009
+            let lines = randomLines rand 250
             let query = Line3D (50., 50., 10., 55., 52., 11.)
             let results =
                 [ 1; 2; 8; 32 ]
@@ -179,14 +187,16 @@ let tests =
         )
 
         test ("tree box contains all lines", fun _ ->
-            let lines = randomLines 100
+            let rand = Random 3010
+            let lines = randomLines rand 100
             let bvh = LineBvh.create lines
             for l in lines do
                 assertThat (bvh.Box.Contains (BBox.createFromLine l)) (tag "tree box should contain every line box" >> isTrue)
         )
 
         test ("closest line to point matches brute force", fun _ ->
-            let lines = randomLines 500
+            let rand = Random 3011
+            let lines = randomLines rand 500
             let bvh = LineBvh.create lines
             let pt = Pnt (42., 61., 7.)
             let struct (i, d) = bvh.ClosestLine pt
@@ -202,7 +212,8 @@ let tests =
         )
 
         test ("closest line to point with skip index", fun _ ->
-            let lines = randomLines 200
+            let rand = Random 3012
+            let lines = randomLines rand 200
             let bvh = LineBvh.create lines
             let pt = lines.[7].From // on line 7 itself
             let struct (i0, d0) = bvh.ClosestLine pt
@@ -213,7 +224,8 @@ let tests =
         )
 
         test ("closest point on lines matches brute force", fun _ ->
-            let lines = randomLines 300
+            let rand = Random 3013
+            let lines = randomLines rand 300
             let bvh = LineBvh.create lines
             let pt = Pnt (33., 44., 11.)
             let cp = bvh.ClosestPoint pt
@@ -224,7 +236,8 @@ let tests =
         )
 
         test ("lines near point match brute force", fun _ ->
-            let lines = randomLines 300
+            let rand = Random 3014
+            let lines = randomLines rand 300
             let bvh = LineBvh.create lines
             let pt = Pnt (50., 50., 10.)
             let tol = 8.0
