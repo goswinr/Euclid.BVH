@@ -21,8 +21,8 @@ type internal BvhNode2D = {
     }
 
 /// An internal module with functions shared by all Bvh2D instantiations.
-/// The index handling (BvhUtil.nodeCount and BvhUtil.selectNth) is shared with the 3D Bvh,
-/// only the geometry is specific to 2D.
+/// The index handling (BvhUtil.nodeCount and BvhUtil.selectNth) and the priority queue of the
+/// best first traversals (BvhHeap) are shared with the 3D Bvh, only the geometry is specific to 2D.
 module internal BvhUtil2D =
 
     /// Returns the squared distance between two axis aligned bounding rectangles.
@@ -479,6 +479,131 @@ type Bvh2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
                     search node.RightChild
         search root
         result
+
+    /// <summary>Lazily enumerates all items in the tree ordered by the distance of their bounding rectangle
+    /// to the given query rectangle, from the closest to the farthest.
+    /// The tree is walked best first: a min heap holds the subtrees and items seen so far, keyed by
+    /// their distance to the query rectangle, and the closest entry is expanded next. So only the part of
+    /// the tree that is closer than the last item taken is ever visited. Taking just the first entry costs
+    /// about as much as ClosestRect, taking all of them sorts the whole tree.
+    /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="queryRect">The axis aligned bounding rectangle to measure the distances from.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each item in the input array and the distance from the
+    /// query rectangle to its bounding rectangle, in order of increasing distance.</returns>
+    member _.RectsByDistance (queryRect: BRect, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        seq {
+            let heap = BvhHeap.MinHeap()
+            heap.Push (BvhUtil2D.sqRectDist queryRect nodes.[root].Rect, root)
+            while heap.Count > 0 do
+                let sqD, payload = heap.Pop ()
+                if payload < 0 then // an item, all entries still in the heap are at least this far away
+                    yield BvhHeap.decodeItem payload, sqrt sqD
+                else
+                    let node = nodes.[payload]
+                    if node.Count > 0 then // leaf
+                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                            let ii = itemIndices.[i]
+                            if ii <> skipIdx then
+                                heap.Push (BvhUtil2D.sqRectDist queryRect rects.[ii], BvhHeap.encodeItem ii)
+                    else
+                        heap.Push (BvhUtil2D.sqRectDist queryRect nodes.[node.LeftOrStart].Rect, node.LeftOrStart)
+                        heap.Push (BvhUtil2D.sqRectDist queryRect nodes.[node.RightChild].Rect, node.RightChild)
+        }
+
+    /// <summary>Lazily enumerates all items in the tree ordered by their exact distance to the query
+    /// geometry, from the closest to the farthest.
+    /// The tree is walked best first, with the rectangle distances as lower bounds: a min heap holds the
+    /// subtrees seen so far keyed by the distance of their bounding rectangle, and the items of an expanded
+    /// leaf keyed by their exact distance. So only the part of the tree that is closer than the last
+    /// item taken is ever visited, and sqDistanceTo is called only for the items in those leaves.
+    /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="queryRect">The axis aligned bounding rectangle of the query geometry.
+    ///  It must fully contain the query geometry that sqDistanceTo measures from,
+    ///  otherwise the enumeration order is wrong.</param>
+    /// <param name="sqDistanceTo">Returns the exact squared distance from the query geometry to an item.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each item in the input array and its exact distance to the
+    /// query geometry, in order of increasing distance.</returns>
+    member _.ItemsByDistance (queryRect: BRect, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        seq {
+            let heap = BvhHeap.MinHeap()
+            heap.Push (BvhUtil2D.sqRectDist queryRect nodes.[root].Rect, root)
+            while heap.Count > 0 do
+                let sqD, payload = heap.Pop ()
+                if payload < 0 then
+                    yield BvhHeap.decodeItem payload, sqrt sqD
+                else
+                    let node = nodes.[payload]
+                    if node.Count > 0 then // leaf
+                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                            let ii = itemIndices.[i]
+                            if ii <> skipIdx then
+                                heap.Push (sqDistanceTo items.[ii], BvhHeap.encodeItem ii)
+                    else
+                        heap.Push (BvhUtil2D.sqRectDist queryRect nodes.[node.LeftOrStart].Rect, node.LeftOrStart)
+                        heap.Push (BvhUtil2D.sqRectDist queryRect nodes.[node.RightChild].Rect, node.RightChild)
+        }
+
+    /// <summary>Lazily enumerates all items in the tree ordered by the distance of their bounding rectangle
+    /// to the given 2D point, from the closest to the farthest.
+    /// The distance from a point to a rectangle is 0.0 if the point is inside or on the rectangle.
+    /// The tree is walked best first, so only the part of it that is closer than the last item taken
+    /// is ever visited. The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="pt">The 2D point to measure the distances from.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each item in the input array and the distance from the
+    /// point to its bounding rectangle, in order of increasing distance.</returns>
+    member _.RectsByDistance (pt: Pt, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        seq {
+            let heap = BvhHeap.MinHeap()
+            heap.Push (BvhUtil2D.sqRectPtDist pt nodes.[root].Rect, root)
+            while heap.Count > 0 do
+                let sqD, payload = heap.Pop ()
+                if payload < 0 then
+                    yield BvhHeap.decodeItem payload, sqrt sqD
+                else
+                    let node = nodes.[payload]
+                    if node.Count > 0 then // leaf
+                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                            let ii = itemIndices.[i]
+                            if ii <> skipIdx then
+                                heap.Push (BvhUtil2D.sqRectPtDist pt rects.[ii], BvhHeap.encodeItem ii)
+                    else
+                        heap.Push (BvhUtil2D.sqRectPtDist pt nodes.[node.LeftOrStart].Rect, node.LeftOrStart)
+                        heap.Push (BvhUtil2D.sqRectPtDist pt nodes.[node.RightChild].Rect, node.RightChild)
+        }
+
+    /// <summary>Lazily enumerates all items in the tree ordered by their exact distance to the given
+    /// 2D point, from the closest to the farthest.
+    /// The tree is walked best first, with the rectangle distances as lower bounds, so only the part of it
+    /// that is closer than the last item taken is ever visited, and sqDistanceTo is called only for
+    /// the items in the leaves that were expanded.
+    /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="pt">The 2D point to measure the distances from.</param>
+    /// <param name="sqDistanceTo">Returns the exact squared distance from the query point to an item.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each item in the input array and its exact distance to the
+    /// point, in order of increasing distance.</returns>
+    member _.ItemsByDistance (pt: Pt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        seq {
+            let heap = BvhHeap.MinHeap()
+            heap.Push (BvhUtil2D.sqRectPtDist pt nodes.[root].Rect, root)
+            while heap.Count > 0 do
+                let sqD, payload = heap.Pop ()
+                if payload < 0 then
+                    yield BvhHeap.decodeItem payload, sqrt sqD
+                else
+                    let node = nodes.[payload]
+                    if node.Count > 0 then // leaf
+                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                            let ii = itemIndices.[i]
+                            if ii <> skipIdx then
+                                heap.Push (sqDistanceTo items.[ii], BvhHeap.encodeItem ii)
+                    else
+                        heap.Push (BvhUtil2D.sqRectPtDist pt nodes.[node.LeftOrStart].Rect, node.LeftOrStart)
+                        heap.Push (BvhUtil2D.sqRectPtDist pt nodes.[node.RightChild].Rect, node.RightChild)
+        }
 
 /// Provides static functions to create Bvh2D trees without specifying the generic type argument.
 [<AbstractClass; Sealed>]

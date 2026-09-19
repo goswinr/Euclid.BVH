@@ -64,6 +64,9 @@ let hits = bvh.LinesInBox (BBox.createFromSeq [ Pnt (0., 0., 0.); Pnt (10., 10.,
 let (idx, dist) = bvh.ClosestLine (Pnt (5., 5., 5.))
 let closestPt = bvh.ClosestPoint (Pnt (5., 5., 5.))
 let nearby = bvh.LinesNearPoint (Pnt (5., 5., 5.), 2.0)
+
+// all lines from the closest to the farthest, as a lazy seq:
+let tenNearest = bvh.LinesByDistance (Pnt (5., 5., 5.)) |> Seq.truncate 10 |> Seq.toArray
 ```
 
 ### Generic usage
@@ -118,6 +121,37 @@ let lines : Line2D[] = ...
 let lineBvh = LineBvh2D.create lines
 let (lineIndex, lineDistance) = lineBvh.ClosestLine (Pt (5., 5.))
 ```
+
+### Nearest first enumeration
+
+Where `ClosestBox` answers *"which item is nearest?"*, the `*ByDistance` queries answer
+*"and then which?"*. They return a lazy F# `seq` of every item, ordered from the closest
+bounding volume outwards to the farthest:
+
+```fsharp
+// the 10 boxes nearest to a point, closest first:
+for (idx, dist) in bvh.BoxesByDistance (Pnt (5., 5., 5.)) |> Seq.truncate 10 do
+    printfn $"box {idx} at {dist}"
+
+// or take as many as needed, without knowing the count upfront:
+let withinFive =
+    bvh.BoxesByDistance queryBox
+    |> Seq.takeWhile (fun (_, d) -> d < 5.0)
+    |> Seq.toArray
+
+// the same ordered by an exact distance function instead of by the bounding box:
+let nearestBalls = bvh.ItemsByDistance (queryBox, sqDist query) |> Seq.truncate 3 |> Seq.toArray
+```
+
+The tree is walked best first: a min heap holds the subtrees and items seen so far, keyed by
+their distance to the query, and the closest entry is expanded next. So only the part of the
+tree that is closer than the last entry taken is ever visited. Taking a single entry costs
+about as much as `ClosestBox`, taking all of them sorts the whole tree. The sequence is
+re-enumerable, and each enumeration starts a new traversal.
+
+`Bvh2D` has `RectsByDistance` and `ItemsByDistance`, `LineBvh` and `LineBvh2D` have
+`LinesByDistance`, each with a query volume or a query point overload and an optional
+`skipIdx` to exclude an item that is itself in the tree.
 
 ## Examples
 
@@ -267,6 +301,8 @@ The core type is the generic `Bvh<'T>`:
 | `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, sqDistance)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
 | `bvh.ItemsInBox (box, ?tolerance)` | All items whose bounding box is within `tolerance` of a given `BBox`. |
 | `bvh.ItemsNearPoint (pt, ?tolerance)` | All items whose bounding box is within `tolerance` of a given 3D point. |
+| `bvh.BoxesByDistance (queryBox, ?skipIdx)` / `bvh.BoxesByDistance (pt, ?skipIdx)` | A lazy `seq` of all items ordered by the distance of their bounding box, closest first. |
+| `bvh.ItemsByDistance (queryBox, sqDistanceTo, ?skipIdx)` / `bvh.ItemsByDistance (pt, sqDistanceTo, ?skipIdx)` | A lazy `seq` of all items ordered by an exact squared distance function, closest first. |
 
 `Bvh2D<'T>` is the 2D equivalent, built on `BRect` instead of `BBox`. It has the same members,
 with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
@@ -284,6 +320,8 @@ with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 | `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, sqDistance)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
 | `bvh.ItemsInRect (rect, ?tolerance)` | All items whose bounding rectangle is within `tolerance` of a given `BRect`. |
 | `bvh.ItemsNearPoint (pt, ?tolerance)` | All items whose bounding rectangle is within `tolerance` of a given 2D point. |
+| `bvh.RectsByDistance (queryRect, ?skipIdx)` / `bvh.RectsByDistance (pt, ?skipIdx)` | A lazy `seq` of all items ordered by the distance of their bounding rectangle, closest first. |
+| `bvh.ItemsByDistance (queryRect, sqDistanceTo, ?skipIdx)` / `bvh.ItemsByDistance (pt, sqDistanceTo, ?skipIdx)` | A lazy `seq` of all items ordered by an exact squared distance function, closest first. |
 | `bvh.Rectangle` | The bounding rectangle around all items. |
 
 `LineBvh` is a thin wrapper over `Bvh<Line3D>` that measures exact segment-to-segment distances:
@@ -299,10 +337,12 @@ with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 | `bvh.ClosestLine (pt, ?skipIdx)` | The index of and distance to the line closest to a 3D point. |
 | `bvh.ClosestPoint pt` | The point on any line in the tree that is closest to a 3D point. |
 | `bvh.LinesNearPoint (pt, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given 3D point. |
+| `bvh.LinesByDistance (query, ?skipIdx)` / `bvh.LinesByDistance (pt, ?skipIdx)` | A lazy `seq` of all lines ordered by their exact distance to a query line or point, closest first. |
 | `bvh.Tree` | The underlying generic `Bvh<Line3D>`. |
 
 `LineBvh2D` provides the corresponding `Line2D` API: `ClosestLine`, `ClosestPoint`,
-`ClosestPair`, `NearestNeighbors`, `ClosePairs`, `LinesInRect`, and `LinesNearPoint`.
+`ClosestPair`, `NearestNeighbors`, `ClosePairs`, `LinesInRect`, `LinesNearPoint`, and
+`LinesByDistance`.
 
 Full API documentation: [goswinr.github.io/Euclid.BVH](https://goswinr.github.io/Euclid.BVH)
 

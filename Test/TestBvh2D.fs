@@ -298,4 +298,75 @@ let tests =
                     bestD <- min bestD (sqrt (XLine2D.getSqDistance (lines.[i], lines.[j])))
             assertThat pair.Distance (tag "the closest pair of lines" >> isCloseTo bestD)
         )
+
+        test ("rectangles by distance enumerate every rectangle in increasing distance order", fun _ ->
+            let rand = Random 2010
+            let rects = randomRects rand 300
+            let bvh = Bvh2D.createFromRects rects
+            let queryRect = BRect.createXY (30., 70., 33., 72.)
+            let found = bvh.RectsByDistance queryRect |> Seq.toArray
+            assertThat found.Length (tag "every rectangle should be enumerated" >> isEqualTo rects.Length)
+            assertThat (found |> Array.map fst |> Set.ofArray |> Set.count) (tag "every index only once" >> isEqualTo rects.Length)
+            let brute = rects |> Array.map (rectDistance queryRect) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"distance at position {i}" >> isCloseTo brute.[i])
+                assertThat (snd found.[i]) (tag $"reported distance of rectangle {fst found.[i]}" >> isCloseTo (rectDistance queryRect rects.[fst found.[i]]))
+        )
+
+        test ("rectangles by distance start at the closest rectangle and skip the given index", fun _ ->
+            let rand = Random 2011
+            let rects = randomRects rand 200
+            let bvh = Bvh2D.createFromRects rects
+            let queryRect = BRect.createXY (10., 10., 15., 12.)
+            let (_, closestD) = bvh.ClosestRect queryRect
+            let firstFive = bvh.RectsByDistance queryRect |> Seq.truncate 5 |> Seq.toArray
+            assertThat firstFive.Length (tag "five entries taken" >> isEqualTo 5)
+            assertThat (snd firstFive.[0]) (tag "first entry should be the closest rectangle" >> isCloseTo closestD)
+            let skip = 17
+            let skipped = bvh.RectsByDistance (rects.[skip], skip) |> Seq.toArray
+            assertThat skipped.Length (tag "all but the skipped rectangle" >> isEqualTo (rects.Length - 1))
+            assertThat (skipped |> Array.exists (fun (i, _) -> i = skip)) (tag "the skipped rectangle should not appear" >> isFalse)
+            let _, nearestD = bruteNearest rects skip
+            assertThat (snd skipped.[0]) (tag "first entry should be the nearest neighbor" >> isCloseTo nearestD)
+        )
+
+        test ("rectangles by distance to a point match brute force order", fun _ ->
+            let rand = Random 2012
+            let rects = randomRects rand 300
+            let bvh = Bvh2D.createFromRects rects
+            let pt = Pt (42., 61.)
+            let found = bvh.RectsByDistance pt |> Seq.toArray
+            assertThat found.Length (tag "every rectangle should be enumerated" >> isEqualTo rects.Length)
+            let brute = rects |> Array.map (ptRectDistance pt) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"distance to point at position {i}" >> isCloseTo brute.[i])
+        )
+
+        test ("items by distance with exact distance match brute force order", fun _ ->
+            let rand = Random 2013
+            let disks = randomDisks rand 300
+            let bvh = Bvh2D.create (disks, diskRect)
+            let query = { Center = Pt (50., 50.); Radius = 1.0 }
+            let found = bvh.ItemsByDistance (diskRect query, diskSqDist query) |> Seq.toArray
+            assertThat found.Length (tag "every disk should be enumerated" >> isEqualTo disks.Length)
+            let brute = disks |> Array.map (fun d -> sqrt (diskSqDist query d)) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"exact distance at position {i}" >> isCloseTo brute.[i])
+                assertThat (snd found.[i]) (tag $"reported distance of disk {fst found.[i]}" >> isCloseTo (sqrt (diskSqDist query disks.[fst found.[i]])))
+        )
+
+        test ("items by distance to a point with exact distance match brute force order", fun _ ->
+            let rand = Random 2014
+            let disks = randomDisks rand 300
+            let bvh = Bvh2D.create (disks, diskRect)
+            let pt = Pt (50., 50.)
+            let sqDistTo (d: Disk) =
+                let g = max 0.0 (d.Center.DistanceTo pt - d.Radius)
+                g * g
+            let found = bvh.ItemsByDistance (pt, sqDistTo) |> Seq.toArray
+            assertThat found.Length (tag "every disk should be enumerated" >> isEqualTo disks.Length)
+            let brute = disks |> Array.map (fun d -> sqrt (sqDistTo d)) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"exact distance to point at position {i}" >> isCloseTo brute.[i])
+        )
     ])

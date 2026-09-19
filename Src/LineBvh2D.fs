@@ -111,3 +111,29 @@ type LineBvh2D private (bvh: Bvh2D<Line2D>) =
     /// <returns>A ResizeArray of the indices of the found lines in the input array.</returns>
     member _.LinesNearPoint (pt: Pt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
         bvh.ItemsNearPoint (pt, tolerance)
+
+    /// <summary>Lazily enumerates all lines in the tree ordered by their exact distance to the given
+    /// query line, from the closest to the farthest.
+    /// The tree is walked best first, with the bounding rectangle distances as lower bounds, so only the
+    /// part of it that is closer than the last line taken is ever visited. Taking just the first entry
+    /// costs about as much as ClosestLine, taking all of them sorts the whole tree.
+    /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="query">The 2D line to measure the distances from.</param>
+    /// <param name="skipIdx">An index into the input lines array to exclude from the enumeration.
+    ///  Use this to enumerate the neighbors of a line that is part of the tree itself. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each line in the input array and its distance to the
+    /// query line, in order of increasing distance.</returns>
+    member _.LinesByDistance (query: Line2D, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        bvh.ItemsByDistance (BRect.createFromLine query, sqDist query, skipIdx)
+
+    /// <summary>Lazily enumerates all lines in the tree ordered by their exact distance to the given
+    /// 2D point, from the closest to the farthest.
+    /// The tree is walked best first, with the bounding rectangle distances as lower bounds, so only the
+    /// part of it that is closer than the last line taken is ever visited.
+    /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="pt">The 2D point to measure the distances from.</param>
+    /// <param name="skipIdx">An index into the input lines array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each line in the input array and its distance to the
+    /// point, in order of increasing distance.</returns>
+    member _.LinesByDistance (pt: Pt, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        bvh.ItemsByDistance (pt, (fun (ln: Line2D) -> ln.SqDistanceToPt pt), skipIdx)

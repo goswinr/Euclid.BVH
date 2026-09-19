@@ -183,6 +183,85 @@ module internal BvhUtil =
         buildNode 0 0 n |> ignore
         idx, nodes, 0
 
+/// An internal module holding the priority queue for the .xxxByDistance queries
+/// that return seq of items in order of increasing distance,
+/// shared by the 3D and the 2D tree.
+///
+/// Why it exists: the *ByDistance queries enumerate the items in order of increasing distance,
+/// which the depth first branch and bound search of the Closest* queries cannot do. They instead
+/// walk the tree best first, expanding whichever subtree or item is currently the closest.
+/// That needs a priority queue over the pending subtrees and items, keyed by their distance.
+///
+/// Why it is hand written: System.Collections.Generic.PriorityQueue would do the job, but it only
+/// exists from .NET 6 on. This library also targets net472 and compiles to JavaScript and
+/// TypeScript with Fable, so an implementation that works everywhere is needed here.
+module internal BvhHeap =
+
+    /// A binary min heap over entries of a float key and an int payload.
+    /// The keys and the payloads are held in two parallel ResizeArrays rather than in one array of
+    /// entry objects, so that pushing an entry does not allocate. That also keeps it Fable friendly,
+    /// a ResizeArray of floats or ints maps to a plain JavaScript array.
+    type MinHeap() =
+        let keys = ResizeArray<float>()
+        let values = ResizeArray<int>()
+
+        let swap i j =
+            let k = keys.[i] in keys.[i] <- keys.[j] ; keys.[j] <- k
+            let v = values.[i] in values.[i] <- values.[j] ; values.[j] <- v
+
+        /// The count of entries currently in the heap.
+        member _.Count = keys.Count
+
+        /// Adds an entry and sifts it up to its place.
+        member _.Push (key: float, value: int) : unit =
+            keys.Add key
+            values.Add value
+            let mutable i = keys.Count - 1
+            let mutable go = true
+            while go && i > 0 do
+                let parent = (i - 1) / 2
+                if keys.[parent] > keys.[i] then
+                    swap parent i
+                    i <- parent
+                else
+                    go <- false
+
+        /// Removes and returns the entry with the smallest key, as a key and payload tuple.
+        /// The heap must not be empty.
+        member _.Pop () : float * int =
+            let topKey = keys.[0]
+            let topValue = values.[0]
+            let last = keys.Count - 1
+            keys.[0] <- keys.[last]
+            values.[0] <- values.[last]
+            keys.RemoveAt last
+            values.RemoveAt last
+            // sift the moved up last entry down again:
+            let n = keys.Count
+            let mutable i = 0
+            let mutable go = true
+            while go do
+                let left = 2 * i + 1
+                let right = left + 1
+                let mutable smallest = i
+                if left  < n && keys.[left]  < keys.[smallest] then smallest <- left
+                if right < n && keys.[right] < keys.[smallest] then smallest <- right
+                if smallest = i then
+                    go <- false
+                else
+                    swap smallest i
+                    i <- smallest
+            topKey, topValue
+
+    /// Encodes an item index as the payload of a MinHeap entry.
+    /// A best first traversal keeps pending tree nodes and pending items in one single heap, because
+    /// they have to be popped in one common distance order. Both are just an int index, so the two
+    /// are told apart by their sign: a node index is stored as it is, an item index as a negative value.
+    let inline encodeItem (itemIdx: int) : int = -itemIdx - 1
+
+    /// Returns the item index encoded by encodeItem.
+    let inline decodeItem (payload: int) : int = -payload - 1
+
 /// <summary>A generic static Bounding Volume Hierarchy (BVH) over any items,
 /// built from Euclid axis aligned bounding boxes (BBox).
 /// The tree is built once from an array of items plus a function that returns the bounding box
@@ -549,6 +628,131 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                     search node.RightChild
         search root
         result
+
+    /// <summary>Lazily enumerates all items in the tree ordered by the distance of their bounding box
+    /// to the given query box, from the closest to the farthest.
+    /// The tree is walked best first: a min heap holds the subtrees and items seen so far, keyed by
+    /// their distance to the query box, and the closest entry is expanded next. So only the part of the
+    /// tree that is closer than the last item taken is ever visited. Taking just the first entry costs
+    /// about as much as ClosestBox, taking all of them sorts the whole tree.
+    /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="queryBox">The axis aligned bounding box to measure the distances from.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each item in the input array and the distance from the
+    /// query box to its bounding box, in order of increasing distance.</returns>
+    member _.BoxesByDistance (queryBox: BBox, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        seq {
+            let heap = BvhHeap.MinHeap()
+            heap.Push (BvhUtil.sqBoxDist queryBox nodes.[root].Box, root)
+            while heap.Count > 0 do
+                let sqD, payload = heap.Pop ()
+                if payload < 0 then // an item, all entries still in the heap are at least this far away
+                    yield BvhHeap.decodeItem payload, sqrt sqD
+                else
+                    let node = nodes.[payload]
+                    if node.Count > 0 then // leaf
+                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                            let ii = itemIndices.[i]
+                            if ii <> skipIdx then
+                                heap.Push (BvhUtil.sqBoxDist queryBox boxes.[ii], BvhHeap.encodeItem ii)
+                    else
+                        heap.Push (BvhUtil.sqBoxDist queryBox nodes.[node.LeftOrStart].Box, node.LeftOrStart)
+                        heap.Push (BvhUtil.sqBoxDist queryBox nodes.[node.RightChild].Box, node.RightChild)
+        }
+
+    /// <summary>Lazily enumerates all items in the tree ordered by their exact distance to the query
+    /// geometry, from the closest to the farthest.
+    /// The tree is walked best first, with the box distances as lower bounds: a min heap holds the
+    /// subtrees seen so far keyed by the distance of their bounding box, and the items of an expanded
+    /// leaf keyed by their exact distance. So only the part of the tree that is closer than the last
+    /// item taken is ever visited, and sqDistanceTo is called only for the items in those leaves.
+    /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="queryBox">The axis aligned bounding box of the query geometry.
+    ///  It must fully contain the query geometry that sqDistanceTo measures from,
+    ///  otherwise the enumeration order is wrong.</param>
+    /// <param name="sqDistanceTo">Returns the exact squared distance from the query geometry to an item.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each item in the input array and its exact distance to the
+    /// query geometry, in order of increasing distance.</returns>
+    member _.ItemsByDistance (queryBox: BBox, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        seq {
+            let heap = BvhHeap.MinHeap()
+            heap.Push (BvhUtil.sqBoxDist queryBox nodes.[root].Box, root)
+            while heap.Count > 0 do
+                let sqD, payload = heap.Pop ()
+                if payload < 0 then
+                    yield BvhHeap.decodeItem payload, sqrt sqD
+                else
+                    let node = nodes.[payload]
+                    if node.Count > 0 then // leaf
+                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                            let ii = itemIndices.[i]
+                            if ii <> skipIdx then
+                                heap.Push (sqDistanceTo items.[ii], BvhHeap.encodeItem ii)
+                    else
+                        heap.Push (BvhUtil.sqBoxDist queryBox nodes.[node.LeftOrStart].Box, node.LeftOrStart)
+                        heap.Push (BvhUtil.sqBoxDist queryBox nodes.[node.RightChild].Box, node.RightChild)
+        }
+
+    /// <summary>Lazily enumerates all items in the tree ordered by the distance of their bounding box
+    /// to the given 3D point, from the closest to the farthest.
+    /// The distance from a point to a box is 0.0 if the point is inside or on the box.
+    /// The tree is walked best first, so only the part of it that is closer than the last item taken
+    /// is ever visited. The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="pt">The 3D point to measure the distances from.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each item in the input array and the distance from the
+    /// point to its bounding box, in order of increasing distance.</returns>
+    member _.BoxesByDistance (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        seq {
+            let heap = BvhHeap.MinHeap()
+            heap.Push (BvhUtil.sqBoxPntDist pt nodes.[root].Box, root)
+            while heap.Count > 0 do
+                let sqD, payload = heap.Pop ()
+                if payload < 0 then
+                    yield BvhHeap.decodeItem payload, sqrt sqD
+                else
+                    let node = nodes.[payload]
+                    if node.Count > 0 then // leaf
+                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                            let ii = itemIndices.[i]
+                            if ii <> skipIdx then
+                                heap.Push (BvhUtil.sqBoxPntDist pt boxes.[ii], BvhHeap.encodeItem ii)
+                    else
+                        heap.Push (BvhUtil.sqBoxPntDist pt nodes.[node.LeftOrStart].Box, node.LeftOrStart)
+                        heap.Push (BvhUtil.sqBoxPntDist pt nodes.[node.RightChild].Box, node.RightChild)
+        }
+
+    /// <summary>Lazily enumerates all items in the tree ordered by their exact distance to the given
+    /// 3D point, from the closest to the farthest.
+    /// The tree is walked best first, with the box distances as lower bounds, so only the part of it
+    /// that is closer than the last item taken is ever visited, and sqDistanceTo is called only for
+    /// the items in the leaves that were expanded.
+    /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
+    /// <param name="pt">The 3D point to measure the distances from.</param>
+    /// <param name="sqDistanceTo">Returns the exact squared distance from the query point to an item.</param>
+    /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
+    /// <returns>A lazy sequence of the index of each item in the input array and its exact distance to the
+    /// point, in order of increasing distance.</returns>
+    member _.ItemsByDistance (pt: Pnt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        seq {
+            let heap = BvhHeap.MinHeap()
+            heap.Push (BvhUtil.sqBoxPntDist pt nodes.[root].Box, root)
+            while heap.Count > 0 do
+                let sqD, payload = heap.Pop ()
+                if payload < 0 then
+                    yield BvhHeap.decodeItem payload, sqrt sqD
+                else
+                    let node = nodes.[payload]
+                    if node.Count > 0 then // leaf
+                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+                            let ii = itemIndices.[i]
+                            if ii <> skipIdx then
+                                heap.Push (sqDistanceTo items.[ii], BvhHeap.encodeItem ii)
+                    else
+                        heap.Push (BvhUtil.sqBoxPntDist pt nodes.[node.LeftOrStart].Box, node.LeftOrStart)
+                        heap.Push (BvhUtil.sqBoxPntDist pt nodes.[node.RightChild].Box, node.RightChild)
+        }
 
 /// Provides static functions to create Bvh trees without specifying the generic type argument.
 [<AbstractClass; Sealed>]

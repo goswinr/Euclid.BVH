@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Lazy nearest-first enumeration: `Bvh.BoxesByDistance` and `Bvh2D.RectsByDistance` return an F# `seq` of all items ordered from the closest bounding box or rectangle outwards to the farthest, for a query box/rectangle or a query point.
+- `Bvh.ItemsByDistance` and `Bvh2D.ItemsByDistance` do the same ordered by an exact squared distance callback instead of by the bounding volume, for a query box/rectangle or a query point.
+- `LineBvh.LinesByDistance` and `LineBvh2D.LinesByDistance` enumerate all lines ordered by their exact segment distance to a query line or point, with optional self exclusion via `skipIdx`.
+- These queries walk the tree best first with a min heap, so taking only the first few entries visits only the part of the tree that is closer than the last entry taken, and costs about as much as the corresponding `Closest*` query.
+
 ### Changed
 - Tests now run on [Scriptorium](https://fable-hub.github.io/Scriptorium/guides/getting-started/) (`Scriptorium.Quill` and `Scriptorium.Nib`) on every target, replacing Expecto on .NET and Fable.Mocha plus the `mocha` npm package on JavaScript.
 - The JavaScript tests are run by `dotnet fable --runScript` instead of `mocha`, so `Test/package.json` has no runtime test dependency left.

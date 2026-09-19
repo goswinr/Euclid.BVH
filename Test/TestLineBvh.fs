@@ -249,4 +249,45 @@ let tests =
                 |> Set.ofSeq
             assertThat found (tag "lines near point should match brute force" >> isEqualTo brute)
         )
+
+        test ("lines by distance to a query line match brute force order", fun _ ->
+            let rand = Random 3015
+            let lines = randomLines rand 250
+            let bvh = LineBvh.create lines
+            let query = Line3D (30., 70., 4., 33., 72., 5.)
+            let found = bvh.LinesByDistance query |> Seq.toArray
+            assertThat found.Length (tag "every line should be enumerated" >> isEqualTo lines.Length)
+            assertThat (found |> Array.map fst |> Set.ofArray |> Set.count) (tag "every index only once" >> isEqualTo lines.Length)
+            let brute = lines |> Array.map (dist query) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"distance at position {i}" >> isCloseTo brute.[i])
+                assertThat (snd found.[i]) (tag $"reported distance of line {fst found.[i]}" >> isCloseTo (dist query lines.[fst found.[i]]))
+        )
+
+        test ("lines by distance skip the given index and start at the nearest neighbor", fun _ ->
+            let rand = Random 3016
+            let lines = randomLines rand 200
+            let bvh = LineBvh.create lines
+            let skip = 23
+            let found = bvh.LinesByDistance (lines.[skip], skip) |> Seq.toArray
+            assertThat found.Length (tag "all but the skipped line" >> isEqualTo (lines.Length - 1))
+            assertThat (found |> Array.exists (fun (i, _) -> i = skip)) (tag "the skipped line should not appear" >> isFalse)
+            let _, nearestD = bruteNearest lines skip
+            assertThat (snd found.[0]) (tag "first entry should be the nearest neighbor" >> isCloseTo nearestD)
+        )
+
+        test ("lines by distance to a point match brute force order", fun _ ->
+            let rand = Random 3017
+            let lines = randomLines rand 250
+            let bvh = LineBvh.create lines
+            let pt = Pnt (50., 50., 10.)
+            let found = bvh.LinesByDistance pt |> Seq.toArray
+            assertThat found.Length (tag "every line should be enumerated" >> isEqualTo lines.Length)
+            let brute = lines |> Array.map (fun l -> sqrt (l.SqDistanceToPnt pt)) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"distance to point at position {i}" >> isCloseTo brute.[i])
+            // the first entry must agree with the branch and bound ClosestLine query:
+            let (_, closestD) = bvh.ClosestLine pt
+            assertThat (snd found.[0]) (tag "first entry should be the closest line" >> isCloseTo closestD)
+        )
     ])

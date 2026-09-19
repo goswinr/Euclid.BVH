@@ -311,4 +311,103 @@ let tests =
                 |> Set.ofSeq
             assertThat found (tag "containing boxes should match brute force" >> isEqualTo brute)
         )
+
+        test ("boxes by distance enumerates every box in increasing distance order", fun _ ->
+            let rand = Random 1018
+            let boxes = randomBoxes rand 300
+            let bvh = Bvh.createFromBoxes boxes
+            let queryBox = BBox.createFromSeq [ Pnt (30., 70., 4.); Pnt (33., 72., 5.) ]
+            let found = bvh.BoxesByDistance queryBox |> Seq.toArray
+            assertThat found.Length (tag "every box should be enumerated" >> isEqualTo boxes.Length)
+            assertThat (found |> Array.map fst |> Set.ofArray |> Set.count) (tag "every index only once" >> isEqualTo boxes.Length)
+            // the distances must be non decreasing and match the brute force distances sorted:
+            let brute = boxes |> Array.map (boxDist queryBox) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"distance at position {i}" >> isCloseTo brute.[i])
+                assertThat (snd found.[i]) (tag $"reported distance of box {fst found.[i]}" >> isCloseTo (boxDist queryBox boxes.[fst found.[i]]))
+        )
+
+        test ("boxes by distance starts at the closest box and is re-enumerable", fun _ ->
+            let rand = Random 1019
+            let boxes = randomBoxes rand 400
+            let bvh = Bvh.createFromBoxes boxes
+            let queryBox = BBox.createFromSeq [ Pnt (10., 10., 5.); Pnt (15., 12., 6.) ]
+            let (_, closestD) = bvh.ClosestBox queryBox
+            let lazySeq = bvh.BoxesByDistance queryBox
+            // taking only the first few entries must not need the whole tree, and must agree with ClosestBox:
+            let firstFive = lazySeq |> Seq.truncate 5 |> Seq.toArray
+            assertThat firstFive.Length (tag "five entries taken" >> isEqualTo 5)
+            assertThat (snd firstFive.[0]) (tag "first entry should be the closest box" >> isCloseTo closestD)
+            // a second enumeration starts a new traversal and gives the same result:
+            let again = lazySeq |> Seq.truncate 5 |> Seq.toArray
+            assertThat (again |> Array.map snd |> Array.toList) (tag "re-enumeration" >> isEqualTo (firstFive |> Array.map snd |> Array.toList))
+        )
+
+        test ("boxes by distance skips the given index", fun _ ->
+            let rand = Random 1020
+            let boxes = randomBoxes rand 200
+            let bvh = Bvh.createFromBoxes boxes
+            let skip = 17
+            let found = bvh.BoxesByDistance (boxes.[skip], skip) |> Seq.toArray
+            assertThat found.Length (tag "all but the skipped box" >> isEqualTo (boxes.Length - 1))
+            assertThat (found |> Array.exists (fun (i, _) -> i = skip)) (tag "the skipped box should not appear" >> isFalse)
+            let _, nearestD = bruteNearest boxes skip
+            assertThat (snd found.[0]) (tag "first entry should be the nearest neighbor" >> isCloseTo nearestD)
+        )
+
+        test ("items by distance with exact distance matches brute force order", fun _ ->
+            let rand = Random 1021
+            let balls = randomBalls rand 300
+            let bvh = Bvh.create (balls, ballBox)
+            let query = { Center = Pnt (50., 50., 10.); Radius = 1.0 }
+            let found = bvh.ItemsByDistance (ballBox query, ballSqDist query) |> Seq.toArray
+            assertThat found.Length (tag "every ball should be enumerated" >> isEqualTo balls.Length)
+            let brute = balls |> Array.map (fun b -> sqrt (ballSqDist query b)) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"exact distance at position {i}" >> isCloseTo brute.[i])
+                assertThat (snd found.[i]) (tag $"reported distance of ball {fst found.[i]}" >> isCloseTo (sqrt (ballSqDist query balls.[fst found.[i]])))
+        )
+
+        test ("boxes by distance to point matches brute force order", fun _ ->
+            let rand = Random 1022
+            let boxes = randomBoxes rand 300
+            let bvh = Bvh.createFromBoxes boxes
+            let pt = Pnt (42., 61., 7.)
+            let ptBox = BBox.createFromSeq [ pt ]
+            let found = bvh.BoxesByDistance pt |> Seq.toArray
+            assertThat found.Length (tag "every box should be enumerated" >> isEqualTo boxes.Length)
+            let brute = boxes |> Array.map (boxDist ptBox) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"distance to point at position {i}" >> isCloseTo brute.[i])
+        )
+
+        test ("items by distance to point with exact distance matches brute force order", fun _ ->
+            let rand = Random 1023
+            let balls = randomBalls rand 300
+            let bvh = Bvh.create (balls, ballBox)
+            let pt = Pnt (50., 50., 10.)
+            let sqDistTo (b: Ball) =
+                let d = max 0.0 (b.Center.DistanceTo pt - b.Radius)
+                d * d
+            let found = bvh.ItemsByDistance (pt, sqDistTo) |> Seq.toArray
+            assertThat found.Length (tag "every ball should be enumerated" >> isEqualTo balls.Length)
+            let brute = balls |> Array.map (fun b -> sqrt (sqDistTo b)) |> Array.sort
+            for i = 0 to found.Length - 1 do
+                assertThat (snd found.[i]) (tag $"exact distance to point at position {i}" >> isCloseTo brute.[i])
+        )
+
+        test ("by distance order does not depend on leaf size", fun _ ->
+            let rand = Random 1024
+            let boxes = randomBoxes rand 250
+            let queryBox = BBox.createFromSeq [ Pnt (50., 50., 10.); Pnt (55., 52., 11.) ]
+            let distancesWithLeafSize leafSize =
+                let bvh = Bvh.createFromBoxes (boxes, leafSize)
+                bvh.BoxesByDistance queryBox |> Seq.map snd |> Seq.toArray
+            let reference = distancesWithLeafSize 1
+            for leafSize in [ 2; 8; 32 ] do
+                let distances = distancesWithLeafSize leafSize
+                assertThat distances.Length (tag $"count with leaf size {leafSize}" >> isEqualTo reference.Length)
+                for i = 0 to distances.Length - 1 do
+                    assertThat distances.[i] (tag $"distance at position {i} with leaf size {leafSize}" >> isCloseTo reference.[i])
+        )
     ])
