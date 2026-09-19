@@ -57,9 +57,9 @@
     <Content Include="Src/**/*.fs; Src/**/*.fsi" PackagePath="fable/Src/" />
 
     <Compile Include="Src/Bvh.fs" />
-    <Compile Include="Src/Bvh2d.fs" />
+    <Compile Include="Src/Bvh2D.fs" />
     <Compile Include="Src/LineBvh.fs" />
-    <Compile Include="Src/LineBvh2d.fs" />
+    <Compile Include="Src/LineBvh2D.fs" />
   </ItemGroup>
 
   <Target Name="CopyReadmeToDocs" AfterTargets="Build">    <!-- for fsdocs to build locally -->

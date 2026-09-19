@@ -101,8 +101,8 @@ prune subtrees safely in both flavors of query.
 
 ### 2D usage
 
-`Bvh2d<'T>` provides the same generic queries for 2D items bounded by Euclid `BRect`
-values, with `Pt` point queries. `LineBvh2d` adds exact `Line2D` segment queries.
+`Bvh2D<'T>` provides the same generic queries for 2D items bounded by Euclid `BRect`
+values, with `Pt` point queries. `LineBvh2D` adds exact `Line2D` segment queries.
 
 It is a genuinely two dimensional tree with its own data structure: its nodes store a `BRect`,
 not a `BBox` with a zero Z range. So it needs a third less memory per node and does a third
@@ -110,12 +110,12 @@ less arithmetic per distance test than the 3D `Bvh<'T>`.
 
 ```fsharp
 let rects : BRect[] = ...
-let bvh = Bvh2d.createFromRects rects
+let bvh = Bvh2D.createFromRects rects
 let (index, distance) = bvh.ClosestRect (Pt (5., 5.))
 let nearby = bvh.ItemsInRect (BRect.createXY (0., 0., 10., 10.))
 
 let lines : Line2D[] = ...
-let lineBvh = LineBvh2d.create lines
+let lineBvh = LineBvh2D.create lines
 let (lineIndex, lineDistance) = lineBvh.ClosestLine (Pt (5., 5.))
 ```
 
@@ -268,13 +268,13 @@ The core type is the generic `Bvh<'T>`:
 | `bvh.ItemsInBox (box, ?tolerance)` | All items whose bounding box is within `tolerance` of a given `BBox`. |
 | `bvh.ItemsNearPoint (pt, ?tolerance)` | All items whose bounding box is within `tolerance` of a given 3D point. |
 
-`Bvh2d<'T>` is the 2D equivalent, built on `BRect` instead of `BBox`. It has the same members,
+`Bvh2D<'T>` is the 2D equivalent, built on `BRect` instead of `BBox`. It has the same members,
 with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 
 | Member | Description |
 | --- | --- |
-| `Bvh2d.create (items, getRect, ?leafSize)` | Builds an immutable 2D tree from any items and a `BRect` function. |
-| `Bvh2d.createFromRects (rects, ?leafSize)` | Builds a 2D tree directly from `BRect[]`, the rectangles are the items. |
+| `Bvh2D.create (items, getRect, ?leafSize)` | Builds an immutable 2D tree from any items and a `BRect` function. |
+| `Bvh2D.createFromRects (rects, ?leafSize)` | Builds a 2D tree directly from `BRect[]`, the rectangles are the items. |
 | `bvh.ClosestRect (queryRect, ?skipIdx)` | The item whose bounding rectangle is closest to a query rectangle. |
 | `bvh.ClosestRect (pt, ?skipIdx)` | The item whose bounding rectangle is closest to a 2D point. |
 | `bvh.ClosestItem (queryRect, sqDistanceTo, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
@@ -301,7 +301,7 @@ with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 | `bvh.LinesNearPoint (pt, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given 3D point. |
 | `bvh.Tree` | The underlying generic `Bvh<Line3D>`. |
 
-`LineBvh2d` provides the corresponding `Line2D` API: `ClosestLine`, `ClosestPoint`,
+`LineBvh2D` provides the corresponding `Line2D` API: `ClosestLine`, `ClosestPoint`,
 `ClosestPair`, `NearestNeighbors`, `ClosePairs`, `LinesInRect`, and `LinesNearPoint`.
 
 Full API documentation: [goswinr.github.io/Euclid.BVH](https://goswinr.github.io/Euclid.BVH)

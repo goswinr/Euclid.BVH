@@ -1,4 +1,4 @@
-module TestBvh2d
+module TestBvh2D
 
 open Euclid
 open System
@@ -82,11 +82,11 @@ let private randomDisks (rand: Random) (count: int) : Disk[] =
           Radius = rand.NextDouble() * 1.5 })
 
 let tests =
-    testList ("Bvh2d", [
+    testList ("Bvh2D", [
         test ("build evaluates every bounding rectangle once", fun _ ->
             let mutable calls = 0
             let rects = [| BRect.createXY (0., 0., 1., 1.); BRect.createXY (2., 0., 3., 1.) |]
-            Bvh2d.create (rects, fun rect -> calls <- calls + 1; rect) |> ignore
+            Bvh2D.create (rects, fun rect -> calls <- calls + 1; rect) |> ignore
             assertThat calls (tag "bounding rectangle function is called once per item" >> isEqualTo rects.Length)
         )
 
@@ -95,7 +95,7 @@ let tests =
                 [| BRect.createXY (0., 0., 1., 1.)
                    BRect.createXY (10., 0., 12., 1.)
                    BRect.createXY (4., 5., 6., 7.) |]
-            let bvh = Bvh2d.createFromRects rects
+            let bvh = Bvh2D.createFromRects rects
             let query = BRect.createXY (2., 0., 3., 1.)
             let (idx, distance) = bvh.ClosestRect query
             assertThat idx (tag "first rectangle is closest" >> isEqualTo 0)
@@ -108,7 +108,7 @@ let tests =
                 [| BRect.createXY (0., 0., 1., 1.)
                    BRect.createXY (1.5, 0., 2.5, 1.)
                    BRect.createXY (10., 0., 11., 1.) |]
-            let bvh = Bvh2d.createFromRects rects
+            let bvh = Bvh2D.createFromRects rects
             let pairs = bvh.ClosePairs 0.5 |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
             assertThat pairs (tag "only the nearby pair is returned" >> isEqualTo (Set.singleton (0, 1)))
             let found = bvh.ItemsNearPoint (Pt (2., 0.5), 0.0) |> Set.ofSeq
@@ -118,7 +118,7 @@ let tests =
         test ("the tree rectangle is the union of all item rectangles", fun _ ->
             let rand = Random 2001
             let rects = randomRects rand 200
-            let bvh = Bvh2d.createFromRects rects
+            let bvh = Bvh2D.createFromRects rects
             let all = rects |> Array.reduce (fun a b -> a.Union b)
             assertThat bvh.Rectangle.MinX (tag "MinX of the tree rectangle" >> isCloseTo all.MinX)
             assertThat bvh.Rectangle.MinY (tag "MinY of the tree rectangle" >> isCloseTo all.MinY)
@@ -131,7 +131,7 @@ let tests =
         test ("closest rectangle to a query rectangle matches brute force", fun _ ->
             let rand = Random 2002
             let rects = randomRects rand 300
-            let bvh = Bvh2d.createFromRects rects
+            let bvh = Bvh2D.createFromRects rects
             for _ = 1 to 50 do
                 let x = rand.NextDouble() * 120.0 - 10.0
                 let y = rand.NextDouble() * 120.0 - 10.0
@@ -147,7 +147,7 @@ let tests =
         test ("closest rectangle to a query point matches brute force", fun _ ->
             let rand = Random 2003
             let rects = randomRects rand 300
-            let bvh = Bvh2d.createFromRects rects
+            let bvh = Bvh2D.createFromRects rects
             for _ = 1 to 50 do
                 let pt = Pt (rand.NextDouble() * 120.0 - 10.0, rand.NextDouble() * 120.0 - 10.0)
                 let (idx, d) = bvh.ClosestRect pt
@@ -161,8 +161,8 @@ let tests =
         test ("leaf size does not change the query results", fun _ ->
             let rand = Random 2004
             let rects = randomRects rand 250
-            let small = Bvh2d.createFromRects (rects, 1)
-            let big = Bvh2d.createFromRects (rects, 16)
+            let small = Bvh2D.createFromRects (rects, 1)
+            let big = Bvh2D.createFromRects (rects, 16)
             for _ = 1 to 30 do
                 let pt = Pt (rand.NextDouble() * 120.0 - 10.0, rand.NextDouble() * 120.0 - 10.0)
                 let (_, dSmall) = small.ClosestRect pt
@@ -177,7 +177,7 @@ let tests =
         test ("nearest neighbors and closest pair match brute force", fun _ ->
             let rand = Random 2005
             let rects = randomRects rand 200
-            let bvh = Bvh2d.createFromRects rects
+            let bvh = Bvh2D.createFromRects rects
             let nn = bvh.NearestNeighbors ()
             assertThat nn.Length (tag "one neighbor per item" >> isEqualTo rects.Length)
             for i = 0 to rects.Length - 1 do
@@ -197,7 +197,7 @@ let tests =
         test ("close pairs match brute force", fun _ ->
             let rand = Random 2006
             let rects = randomRects rand 200
-            let bvh = Bvh2d.createFromRects rects
+            let bvh = Bvh2D.createFromRects rects
             for maxDist in [ 0.0; 1.0; 5.0 ] do
                 let found = bvh.ClosePairs maxDist |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
                 assertThat found (tag $"all pairs closer than {maxDist}" >> isEqualTo (brutePairs rects maxDist))
@@ -206,7 +206,7 @@ let tests =
         test ("items in a rectangle and near a point match brute force", fun _ ->
             let rand = Random 2007
             let rects = randomRects rand 250
-            let bvh = Bvh2d.createFromRects rects
+            let bvh = Bvh2D.createFromRects rects
             let query = BRect.createXY (20., 20., 45., 60.)
             for tol in [ 0.0; 2.5 ] do
                 let found = bvh.ItemsInRect (query, tol) |> Set.ofSeq
@@ -228,7 +228,7 @@ let tests =
         test ("exact distance queries on a custom item type", fun _ ->
             let rand = Random 2008
             let disks = randomDisks rand 150
-            let bvh = Bvh2d.create (disks, diskRect)
+            let bvh = Bvh2D.create (disks, diskRect)
             // the closest disk to a point, measured to the disk outline:
             for _ = 1 to 20 do
                 let pt = Pt (rand.NextDouble() * 100.0, rand.NextDouble() * 100.0)
@@ -258,7 +258,7 @@ let tests =
 
         test ("a tree of a single item answers all queries", fun _ ->
             let rects = [| BRect.createXY (0., 0., 1., 1.) |]
-            let bvh = Bvh2d.createFromRects rects
+            let bvh = Bvh2D.createFromRects rects
             let (idx, d) = bvh.ClosestRect (Pt (3., 1.))
             assertThat idx (tag "the only item is the closest" >> isEqualTo 0)
             assertThat d (tag "the distance to the only item" >> isCloseTo 2.0)
@@ -268,7 +268,7 @@ let tests =
 
         test ("2D line wrapper uses rectangle bounds", fun _ ->
             let lines = [| Line2D (0., 0., 1., 0.); Line2D (5., 0., 6., 0.) |]
-            let bvh = LineBvh2d.create lines
+            let bvh = LineBvh2D.create lines
             let (idx, distance) = bvh.ClosestLine (Pt (0.5, 2.))
             assertThat idx (tag "first line is closest" >> isEqualTo 0)
             assertThat distance (tag "exact planar line distance" >> isCloseTo 2.0)
@@ -281,7 +281,7 @@ let tests =
                     let x = rand.NextDouble() * 100.0
                     let y = rand.NextDouble() * 100.0
                     Line2D (x, y, x + rand.NextDouble() * 10.0 - 5.0, y + rand.NextDouble() * 10.0 - 5.0))
-            let bvh = LineBvh2d.create lines
+            let bvh = LineBvh2D.create lines
             for _ = 1 to 25 do
                 let pt = Pt (rand.NextDouble() * 100.0, rand.NextDouble() * 100.0)
                 let (idx, d) = bvh.ClosestLine pt

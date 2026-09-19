@@ -11,7 +11,7 @@
 
     <Compile Include="Asserts.fs" />
     <Compile Include="TestBvh.fs" />
-    <Compile Include="TestBvh2d.fs" />
+    <Compile Include="TestBvh2D.fs" />
     <Compile Include="TestLineBvh.fs" />
     <Compile Include="TestMain.fs" />
   </ItemGroup>

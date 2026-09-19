@@ -19,6 +19,6 @@ let main _ =
         noTimeout >> slowThreshold 2000,
         [
             TestBvh.tests
-            TestBvh2d.tests
+            TestBvh2D.tests
             TestLineBvh.tests
         ])
