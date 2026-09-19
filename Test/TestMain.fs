@@ -1,38 +1,24 @@
 module Euclid.BVH.Tests
-open System
 
-#if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
-open Fable.Mocha
-let test x = Mocha.runTests x
-#else
-open Expecto
+open Scriptorium.Quill
+open type Scriptorium.Quill.Runner
+
+#if !FABLE_COMPILER
 open System.Globalization
 open System.Threading
-Thread.CurrentThread.CurrentCulture   <- CultureInfo.GetCultureInfo "en-US" // so that a float never has a comma as decimal separator
+// so that a float never has a comma as decimal separator in an assertion message:
+Thread.CurrentThread.CurrentCulture   <- CultureInfo.GetCultureInfo "en-US"
 Thread.CurrentThread.CurrentUICulture <- CultureInfo.GetCultureInfo "en-US"
-let mutable cliArgs : string[] = [||]
-let test x = runTestsWithCLIArgs [] cliArgs x
 #endif
 
-let run () =
-    test TestBvh.tests
-    |||
-    test TestBvh2d.tests
-    |||
-    test TestLineBvh.tests
-
-#if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
-#nowarn "20" //The result of this expression has type 'int' and is implicitly ignored.
-run()
-#else
-
+// noTimeout: the brute force reference implementations these tests compare against are
+// quadratic, so a single test can easily run longer than Quill's 5 second default.
 [<EntryPoint>]
-let main (args: string[]) =
-    cliArgs <- args
-    let r = run ()
-    if r = 0 then
-        printfn "All tests passed"
-    else
-        printfn "%d tests failed" r
-    r
-#endif
+let main _ =
+    runTestsWith (
+        noTimeout >> slowThreshold 2000,
+        [
+            TestBvh.tests
+            TestBvh2d.tests
+            TestLineBvh.tests
+        ])
