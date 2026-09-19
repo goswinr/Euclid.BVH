@@ -4,6 +4,16 @@ open System
 open System.Collections.Generic
 open Euclid
 
+/// The current high resolution timestamp in milliseconds, used for benchmarking.
+/// Uses the browser's performance.now() when compiled with Fable, since DateTime.UtcNow
+/// only has millisecond resolution there and this module always runs as compiled JavaScript.
+#if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
+let inline private now () : float = Fable.Core.JsInterop.emitJsExpr () "performance.now()"
+#else
+let private stopwatch = Diagnostics.Stopwatch.StartNew()
+let inline private now () : float = stopwatch.Elapsed.TotalMilliseconds
+#endif
+
 type Segment = {
     X1: float
     Y1: float
@@ -137,13 +147,13 @@ let private measureClosestLine (lines: Line2D[]) queryIndex =
     let iterations = max 1 (2_000_000 / lines.Length)
     let mutable bvhResult = -1, Double.MaxValue
 
-    let startedBvh = DateTime.UtcNow
+    let startedBvh = now ()
     for _ = 1 to iterations do
         bvhResult <- bvh.ClosestLine (query, queryIndex)
-    let bvhMilliseconds = (DateTime.UtcNow - startedBvh).TotalMilliseconds / float iterations
+    let bvhMilliseconds = (now () - startedBvh) / float iterations
 
     let mutable bruteResult = -1, Double.MaxValue
-    let startedBruteForce = DateTime.UtcNow
+    let startedBruteForce = now ()
     for _ = 1 to iterations do
         let mutable closestIndex = -1
         let mutable closestSqDistance = Double.MaxValue
@@ -154,7 +164,7 @@ let private measureClosestLine (lines: Line2D[]) queryIndex =
                     closestIndex <- i
                     closestSqDistance <- sqDistance
         bruteResult <- closestIndex, sqrt closestSqDistance
-    let bruteForceMilliseconds = (DateTime.UtcNow - startedBruteForce).TotalMilliseconds / float iterations
+    let bruteForceMilliseconds = (now () - startedBruteForce) / float iterations
 
     let _, bvhDistance = bvhResult
     let _, bruteDistance = bruteResult

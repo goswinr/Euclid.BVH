@@ -5,6 +5,7 @@
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Fable.Core" Version="4.5.0" Condition="$(DefineConstants.Contains('FABLE_COMPILER'))" />
     <ProjectReference Include="../../Euclid.BVH.fsproj" />
     <Compile Include="Visualisation.fs" />
   </ItemGroup>
