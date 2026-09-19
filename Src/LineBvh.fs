@@ -56,7 +56,7 @@ type LineBvh private (bvh: Bvh<Line3D>) =
     /// <param name="skipIdx">An index into the input lines array to exclude from the search.
     ///  Use this to find the nearest neighbor of a line that is part of the tree itself. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest line in the input array and the distance to it.</returns>
-    member _.ClosestLine (query: Line3D, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestLine (query: Line3D, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         bvh.ClosestItem (BBox.createFromLine query, sqDist query, skipIdx)
 
     /// <summary>Finds the closest line in the tree to the given 3D point.
@@ -65,14 +65,14 @@ type LineBvh private (bvh: Bvh<Line3D>) =
     /// <param name="pt">The 3D point to search the closest line for.</param>
     /// <param name="skipIdx">An index into the input lines array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest line in the input array and the distance from the point to it.</returns>
-    member _.ClosestLine (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestLine (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         bvh.ClosestItem (pt, (fun (ln: Line3D) -> ln.SqDistanceToPnt pt), skipIdx)
 
     /// <summary>Finds the point on any line in the tree that is closest to the given 3D point.</summary>
     /// <param name="pt">The 3D point to search the closest point for.</param>
     /// <returns>The closest point on the closest line.</returns>
     member lb.ClosestPoint (pt: Pnt) : Pnt =
-        let struct (i, _) = lb.ClosestLine pt
+        let i, _ = lb.ClosestLine pt
         bvh.Items.[i].ClosestPoint pt
 
     /// <summary>Finds the pair of closest lines among all lines in the tree.

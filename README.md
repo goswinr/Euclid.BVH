@@ -42,10 +42,10 @@ let lines : Line3D[] = ...
 let bvh = LineBvh.create lines
 
 // the closest line to a query line:
-let struct (index, distance) = bvh.ClosestLine (Line3D (0., 0., 0., 1., 1., 1.))
+let (index, distance) = bvh.ClosestLine (Line3D (0., 0., 0., 1., 1., 1.))
 
 // the nearest neighbor of a line that is itself in the tree (excluding itself):
-let struct (neighbor, dist) = bvh.ClosestLine (lines.[42], 42)
+let (neighbor, dist) = bvh.ClosestLine (lines.[42], 42)
 
 // the globally closest pair of lines:
 let pair = bvh.ClosestPair ()   // pair.IdxA, pair.IdxB, pair.Distance
@@ -61,7 +61,7 @@ let hits = bvh.LinesInBox (BBox.createFromSeq [ Pnt (0., 0., 0.); Pnt (10., 10.,
 
 // point queries: the closest line to a 3D point, the closest point on any line,
 // and all lines near a point:
-let struct (idx, dist) = bvh.ClosestLine (Pnt (5., 5., 5.))
+let (idx, dist) = bvh.ClosestLine (Pnt (5., 5., 5.))
 let closestPt = bvh.ClosestPoint (Pnt (5., 5., 5.))
 let nearby = bvh.LinesNearPoint (Pnt (5., 5., 5.), 2.0)
 ```
@@ -79,7 +79,7 @@ let boxes : BBox[] = ...
 let bvh = Bvh.createFromBoxes boxes
 
 // the box closest to a query box (distance 0.0 if they overlap or touch):
-let struct (index, distance) = bvh.ClosestBox queryBox
+let (index, distance) = bvh.ClosestBox queryBox
 
 // all pairs of overlapping or touching boxes:
 let overlaps = bvh.ClosePairs 0.0
@@ -93,7 +93,7 @@ let bvh = Bvh.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radi
 let sqDist a b = let d = max 0.0 (a.Center.DistanceTo b.Center - a.Radius - b.Radius) in d * d
 let pair = bvh.ClosestPair sqDist                 // globally closest pair of balls
 let touching = bvh.ClosePairs (0.1, sqDist)       // all pairs of balls closer than 0.1
-let struct (i, d) = bvh.ClosestItem (queryBox, sqDist query)  // closest ball to a query ball
+let (i, d) = bvh.ClosestItem (queryBox, sqDist query)  // closest ball to a query ball
 ```
 
 The bounding box distance is always a lower bound of the exact distance, so the tree can
@@ -111,12 +111,12 @@ less arithmetic per distance test than the 3D `Bvh<'T>`.
 ```fsharp
 let rects : BRect[] = ...
 let bvh = Bvh2d.createFromRects rects
-let struct (index, distance) = bvh.ClosestRect (Pt (5., 5.))
+let (index, distance) = bvh.ClosestRect (Pt (5., 5.))
 let nearby = bvh.ItemsInRect (BRect.createXY (0., 0., 10., 10.))
 
 let lines : Line2D[] = ...
 let lineBvh = LineBvh2d.create lines
-let struct (lineIndex, lineDistance) = lineBvh.ClosestLine (Pt (5., 5.))
+let (lineIndex, lineDistance) = lineBvh.ClosestLine (Pt (5., 5.))
 ```
 
 ## Examples
@@ -160,7 +160,7 @@ printfn $"closest pair: {worst.IdxA} and {worst.IdxB} at distance {worst.Distanc
 let mousePt = Pnt (50., 50., 50.)
 
 // index of and distance to the nearest line:
-let struct (idx, dist) = bvh.ClosestLine mousePt
+let (idx, dist) = bvh.ClosestLine mousePt
 
 // the exact point on that line to snap to:
 let snapPt = bvh.ClosestPoint mousePt
@@ -217,7 +217,7 @@ let query = BBox.createFromCenter (Pnt (50., 50., 50.), 4., 4., 4.)
 let near = bvh.ItemsInBox (query, 1.5)
 
 // the box closest to a 3D point:
-let struct (closest, distance) = bvh.ClosestBox (Pnt (0., 0., 0.))
+let (closest, distance) = bvh.ClosestBox (Pnt (0., 0., 0.))
 ```
 
 ### Custom item types

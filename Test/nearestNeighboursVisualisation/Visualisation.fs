@@ -135,14 +135,14 @@ let private measureClosestLine (lines: Line2D[]) queryIndex =
     let query = lines.[queryIndex]
     let bvh = LineBvh2d.create lines
     let iterations = max 1 (2_000_000 / lines.Length)
-    let mutable bvhResult = struct (-1, Double.MaxValue)
+    let mutable bvhResult = -1, Double.MaxValue
 
     let startedBvh = DateTime.UtcNow
     for _ = 1 to iterations do
         bvhResult <- bvh.ClosestLine (query, queryIndex)
     let bvhMilliseconds = (DateTime.UtcNow - startedBvh).TotalMilliseconds / float iterations
 
-    let mutable bruteResult = struct (-1, Double.MaxValue)
+    let mutable bruteResult = -1, Double.MaxValue
     let startedBruteForce = DateTime.UtcNow
     for _ = 1 to iterations do
         let mutable closestIndex = -1
@@ -153,11 +153,11 @@ let private measureClosestLine (lines: Line2D[]) queryIndex =
                 if sqDistance < closestSqDistance then
                     closestIndex <- i
                     closestSqDistance <- sqDistance
-        bruteResult <- struct (closestIndex, sqrt closestSqDistance)
+        bruteResult <- closestIndex, sqrt closestSqDistance
     let bruteForceMilliseconds = (DateTime.UtcNow - startedBruteForce).TotalMilliseconds / float iterations
 
-    let struct (_, bvhDistance) = bvhResult
-    let struct (_, bruteDistance) = bruteResult
+    let _, bvhDistance = bvhResult
+    let _, bruteDistance = bruteResult
     if abs (bvhDistance - bruteDistance) > 1e-9 then
         failwith $"BVH distance {bvhDistance} does not match brute-force distance {bruteDistance}."
 

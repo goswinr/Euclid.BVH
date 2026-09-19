@@ -32,16 +32,16 @@ type LineBvh2d private (bvh: Bvh2d<Line2D>) =
         LineBvh2d (Bvh2d.create (lines, BRect.createFromLine, leafSize))
 
     /// Finds the closest line in the tree to the given query line.
-    member _.ClosestLine (query: Line2D, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestLine (query: Line2D, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         bvh.ClosestItem (BRect.createFromLine query, sqDist query, skipIdx)
 
     /// Finds the closest line in the tree to the given 2D point.
-    member _.ClosestLine (pt: Pt, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestLine (pt: Pt, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         bvh.ClosestItem (pt, (fun (ln: Line2D) -> ln.SqDistanceToPt pt), skipIdx)
 
     /// Finds the point on any line in the tree that is closest to the given 2D point.
     member lb.ClosestPoint (pt: Pt) : Pt =
-        let struct (i, _) = lb.ClosestLine pt
+        let i, _ = lb.ClosestLine pt
         bvh.Items.[i].ClosestPoint pt
 
     /// Finds the pair of closest lines among all lines in the tree.

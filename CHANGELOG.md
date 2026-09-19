@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Tests now run on [Scriptorium](https://fable-hub.github.io/Scriptorium/guides/getting-started/) (`Scriptorium.Quill` and `Scriptorium.Nib`) on every target, replacing Expecto on .NET and Fable.Mocha plus the `mocha` npm package on JavaScript.
 - The JavaScript tests are run by `dotnet fable --runScript` instead of `mocha`, so `Test/package.json` has no runtime test dependency left.
+- Breaking: `ClosestItem`, `ClosestBox`, `ClosestRect` and `ClosestLine` now return a plain tuple `(int * float)` instead of a struct tuple, matching the rest of the public API.
 
 ## [0.1.0] - 2026-09-07
 ### Added

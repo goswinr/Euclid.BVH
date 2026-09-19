@@ -202,7 +202,7 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// <param name="skipIdx">An index into the input items array to exclude from the search.
     ///  Use this to find the nearest neighbor of an item that is part of the tree itself. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest item in the input array and the distance to it.</returns>
-    member _.ClosestItem (queryRect: BRect, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestItem (queryRect: BRect, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.MaxValue
         let mutable bestIdx = -1
         let rec search nodeIdx =
@@ -228,14 +228,14 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
                         search node.LeftOrStart
         search root
         if bestIdx = -1 then fail "Bvh2d.ClosestItem: no item found. Tree has only the skipped item?"
-        struct (bestIdx, sqrt bestSqDist)
+        bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree whose bounding rectangle is closest to the given query rectangle.
     /// The distance between two rectangles is 0.0 if they overlap or touch.</summary>
     /// <param name="queryRect">The axis aligned bounding rectangle to search the closest item rectangle for.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the item with the closest bounding rectangle and the distance between the rectangles.</returns>
-    member _.ClosestRect (queryRect: BRect, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestRect (queryRect: BRect, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.MaxValue
         let mutable bestIdx = -1
         let rec search nodeIdx =
@@ -260,7 +260,7 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
                         search node.LeftOrStart
         search root
         if bestIdx = -1 then fail "Bvh2d.ClosestRect: no item found. Tree has only the skipped item?"
-        struct (bestIdx, sqrt bestSqDist)
+        bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree closest to the given query point.
     /// The distance to an item is measured to the exact geometry via the given squared distance
@@ -271,7 +271,7 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// <param name="sqDistanceTo">Returns the exact squared distance from the query point to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest item in the input array and the distance to it.</returns>
-    member _.ClosestItem (pt: Pt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestItem (pt: Pt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.MaxValue
         let mutable bestIdx = -1
         let rec search nodeIdx =
@@ -297,14 +297,14 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
                         search node.LeftOrStart
         search root
         if bestIdx = -1 then fail "Bvh2d.ClosestItem: no item found. Tree has only the skipped item?"
-        struct (bestIdx, sqrt bestSqDist)
+        bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree whose bounding rectangle is closest to the given query point.
     /// The distance between a point and a rectangle is 0.0 if the point is inside or on the rectangle.</summary>
     /// <param name="pt">The 2D point to search the closest item rectangle for.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the item with the closest bounding rectangle and the distance from the point to that rectangle.</returns>
-    member _.ClosestRect (pt: Pt, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestRect (pt: Pt, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.MaxValue
         let mutable bestIdx = -1
         let rec search nodeIdx =
@@ -329,7 +329,7 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
                         search node.LeftOrStart
         search root
         if bestIdx = -1 then fail "Bvh2d.ClosestRect: no item found. Tree has only the skipped item?"
-        struct (bestIdx, sqrt bestSqDist)
+        bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the pair of closest items among all items in the tree, measured with
     /// the given exact squared distance function. For every item the nearest neighbor
@@ -340,7 +340,7 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
         if items.Count < 2 then fail "Bvh2d.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
         for i = 0 to items.Count - 1 do
-            let struct (j, d) = bvh.ClosestItem (rects.[i], sqDistance items.[i], i)
+            let j, d = bvh.ClosestItem (rects.[i], sqDistance items.[i], i)
             if d < best.Distance then
                 best <- { IdxA = min i j; IdxB = max i j; Distance = d }
         best
@@ -352,7 +352,7 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
         if items.Count < 2 then fail "Bvh2d.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
         for i = 0 to items.Count - 1 do
-            let struct (j, d) = bvh.ClosestRect (rects.[i], i)
+            let j, d = bvh.ClosestRect (rects.[i], i)
             if d < best.Distance then
                 best <- { IdxA = min i j; IdxB = max i j; Distance = d }
         best
@@ -365,7 +365,7 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     member bvh.NearestNeighbors (sqDistance: 'T -> 'T -> float) : BvhPair[] =
         if items.Count < 2 then fail "Bvh2d.NearestNeighbors: needs at least two items."
         Array.init items.Count (fun i ->
-            let struct (j, d) = bvh.ClosestItem (rects.[i], sqDistance items.[i], i)
+            let j, d = bvh.ClosestItem (rects.[i], sqDistance items.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 
     /// <summary>For every item in the tree finds the item whose bounding rectangle is nearest to its own.
@@ -375,7 +375,7 @@ type Bvh2d<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     member bvh.NearestNeighbors () : BvhPair[] =
         if items.Count < 2 then fail "Bvh2d.NearestNeighbors: needs at least two items."
         Array.init items.Count (fun i ->
-            let struct (j, d) = bvh.ClosestRect (rects.[i], i)
+            let j, d = bvh.ClosestRect (rects.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 
     /// Internal worker for both ClosePairs overloads, taking a squared distance function on item indices.

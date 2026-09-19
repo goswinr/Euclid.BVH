@@ -99,7 +99,7 @@ let tests =
             let bvh = Bvh.createFromBoxes boxes
             assertThat bvh.Count (tag "count" >> isEqualTo 1)
             let queryBox = BBox.createFromSeq [ Pnt (0., 3., 0.); Pnt (1., 4., 1.) ]
-            let struct (i, d) = bvh.ClosestBox queryBox
+            let (i, d) = bvh.ClosestBox queryBox
             assertThat i (tag "closest index" >> isEqualTo 0)
             assertThat d (tag "closest box distance" >> isCloseTo 2.0)
         )
@@ -109,7 +109,7 @@ let tests =
             let boxes = randomBoxes rand 500
             let bvh = Bvh.createFromBoxes boxes
             let queryBox = BBox.createFromSeq [ Pnt (10., 10., 5.); Pnt (15., 12., 6.) ]
-            let struct (_, d) = bvh.ClosestBox queryBox
+            let (_, d) = bvh.ClosestBox queryBox
             let mutable bestD = Double.MaxValue
             for b in boxes do
                 bestD <- min bestD (boxDist queryBox b)
@@ -121,7 +121,7 @@ let tests =
             let boxes = randomBoxes rand 300
             let bvh = Bvh.createFromBoxes boxes
             for i = 0 to boxes.Length - 1 do
-                let struct (_, d) = bvh.ClosestBox (boxes.[i], i)
+                let (_, d) = bvh.ClosestBox (boxes.[i], i)
                 let _, bd = bruteNearest boxes i
                 assertThat d (tag $"nearest neighbor box distance of box {i}" >> isCloseTo bd)
         )
@@ -224,7 +224,7 @@ let tests =
             let balls = randomBalls rand 300
             let bvh = Bvh.create (balls, ballBox)
             let query = { Center = Pnt (50., 50., 10.); Radius = 1.0 }
-            let struct (_, d) = bvh.ClosestItem (ballBox query, ballSqDist query)
+            let (_, d) = bvh.ClosestItem (ballBox query, ballSqDist query)
             let mutable bd = Double.MaxValue
             for b in balls do
                 bd <- min bd (sqrt (ballSqDist query b))
@@ -239,7 +239,7 @@ let tests =
                 [ 1; 2; 8; 32 ]
                 |> List.map (fun ls ->
                     let bvh = Bvh.createFromBoxes (boxes, ls)
-                    let struct (_, d) = bvh.ClosestBox queryBox
+                    let (_, d) = bvh.ClosestBox queryBox
                     d)
             for d in results do
                 assertThat d (tag "distance should not depend on leaf size" >> isCloseTo results.Head)
@@ -258,7 +258,7 @@ let tests =
             let boxes = randomBoxes rand 400
             let bvh = Bvh.createFromBoxes boxes
             let pt = Pnt (42., 61., 7.)
-            let struct (_, d) = bvh.ClosestBox pt
+            let (_, d) = bvh.ClosestBox pt
             let queryBox = BBox.createFromSeq [ pt ]
             let mutable bestD = Double.MaxValue
             for b in boxes do
@@ -274,7 +274,7 @@ let tests =
             let sqDistTo (b: Ball) =
                 let d = max 0.0 (b.Center.DistanceTo pt - b.Radius)
                 d * d
-            let struct (_, d) = bvh.ClosestItem (pt, sqDistTo)
+            let (_, d) = bvh.ClosestItem (pt, sqDistTo)
             let mutable bestD = Double.MaxValue
             for b in balls do
                 bestD <- min bestD (sqrt (sqDistTo b))

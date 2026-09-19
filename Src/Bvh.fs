@@ -271,7 +271,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// <param name="skipIdx">An index into the input items array to exclude from the search.
     ///  Use this to find the nearest neighbor of an item that is part of the tree itself. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest item in the input array and the distance to it.</returns>
-    member _.ClosestItem (queryBox: BBox, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestItem (queryBox: BBox, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.MaxValue
         let mutable bestIdx = -1
         let rec search nodeIdx =
@@ -297,14 +297,14 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         search node.LeftOrStart
         search root
         if bestIdx = -1 then fail "Bvh.ClosestItem: no item found. Tree has only the skipped item?"
-        struct (bestIdx, sqrt bestSqDist)
+        bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree whose bounding box is closest to the given query box.
     /// The distance between two boxes is 0.0 if they overlap or touch.</summary>
     /// <param name="queryBox">The axis aligned bounding box to search the closest item box for.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the item with the closest bounding box and the distance between the boxes.</returns>
-    member bvh.ClosestBox (queryBox: BBox, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member bvh.ClosestBox (queryBox: BBox, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         // over-approximate the item boxes as themselves: box distance is exact here
         let mutable bestSqDist = Double.MaxValue
         let mutable bestIdx = -1
@@ -330,7 +330,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         search node.LeftOrStart
         search root
         if bestIdx = -1 then fail "Bvh.ClosestBox: no item found. Tree has only the skipped item?"
-        struct (bestIdx, sqrt bestSqDist)
+        bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree closest to the given query point.
     /// The distance to an item is measured to the exact geometry via the given squared distance
@@ -341,7 +341,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// <param name="sqDistanceTo">Returns the exact squared distance from the query point to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest item in the input array and the distance to it.</returns>
-    member _.ClosestItem (pt: Pnt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestItem (pt: Pnt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.MaxValue
         let mutable bestIdx = -1
         let rec search nodeIdx =
@@ -367,14 +367,14 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         search node.LeftOrStart
         search root
         if bestIdx = -1 then fail "Bvh.ClosestItem: no item found. Tree has only the skipped item?"
-        struct (bestIdx, sqrt bestSqDist)
+        bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree whose bounding box is closest to the given query point.
     /// The distance between a point and a box is 0.0 if the point is inside or on the box.</summary>
     /// <param name="pt">The 3D point to search the closest item box for.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the item with the closest bounding box and the distance from the point to that box.</returns>
-    member _.ClosestBox (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : struct (int * float) =
+    member _.ClosestBox (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.MaxValue
         let mutable bestIdx = -1
         let rec search nodeIdx =
@@ -399,7 +399,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         search node.LeftOrStart
         search root
         if bestIdx = -1 then fail "Bvh.ClosestBox: no item found. Tree has only the skipped item?"
-        struct (bestIdx, sqrt bestSqDist)
+        bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the pair of closest items among all items in the tree, measured with
     /// the given exact squared distance function. For every item the nearest neighbor
@@ -410,7 +410,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
         if items.Count < 2 then fail "Bvh.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
         for i = 0 to items.Count - 1 do
-            let struct (j, d) = bvh.ClosestItem (boxes.[i], sqDistance items.[i], i)
+            let j, d = bvh.ClosestItem (boxes.[i], sqDistance items.[i], i)
             if d < best.Distance then
                 best <- { IdxA = min i j; IdxB = max i j; Distance = d }
         best
@@ -422,7 +422,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
         if items.Count < 2 then fail "Bvh.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
         for i = 0 to items.Count - 1 do
-            let struct (j, d) = bvh.ClosestBox (boxes.[i], i)
+            let j, d = bvh.ClosestBox (boxes.[i], i)
             if d < best.Distance then
                 best <- { IdxA = min i j; IdxB = max i j; Distance = d }
         best
@@ -435,7 +435,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     member bvh.NearestNeighbors (sqDistance: 'T -> 'T -> float) : BvhPair[] =
         if items.Count < 2 then fail "Bvh.NearestNeighbors: needs at least two items."
         Array.init items.Count (fun i ->
-            let struct (j, d) = bvh.ClosestItem (boxes.[i], sqDistance items.[i], i)
+            let j, d = bvh.ClosestItem (boxes.[i], sqDistance items.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 
     /// <summary>For every item in the tree finds the item whose bounding box is nearest to its own.
@@ -445,7 +445,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     member bvh.NearestNeighbors () : BvhPair[] =
         if items.Count < 2 then fail "Bvh.NearestNeighbors: needs at least two items."
         Array.init items.Count (fun i ->
-            let struct (j, d) = bvh.ClosestBox (boxes.[i], i)
+            let j, d = bvh.ClosestBox (boxes.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 
     /// Internal worker for both ClosePairs overloads, taking a squared distance function on item indices.

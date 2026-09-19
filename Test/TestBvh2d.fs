@@ -97,7 +97,7 @@ let tests =
                    BRect.createXY (4., 5., 6., 7.) |]
             let bvh = Bvh2d.createFromRects rects
             let query = BRect.createXY (2., 0., 3., 1.)
-            let struct (idx, distance) = bvh.ClosestRect query
+            let (idx, distance) = bvh.ClosestRect query
             assertThat idx (tag "first rectangle is closest" >> isEqualTo 0)
             assertThat distance (tag "distance is planar" >> isCloseTo (rectDistance query rects.[0]))
             assertThat (bvh.Rectangle.Contains rects.[0]) (tag "tree rectangle contains items" >> isTrue)
@@ -136,7 +136,7 @@ let tests =
                 let x = rand.NextDouble() * 120.0 - 10.0
                 let y = rand.NextDouble() * 120.0 - 10.0
                 let query = BRect.createXY (x, y, x + 1.0, y + 1.0)
-                let struct (idx, d) = bvh.ClosestRect query
+                let (idx, d) = bvh.ClosestRect query
                 let mutable bestD = Double.MaxValue
                 for i = 0 to rects.Length - 1 do
                     bestD <- min bestD (rectDistance query rects.[i])
@@ -150,7 +150,7 @@ let tests =
             let bvh = Bvh2d.createFromRects rects
             for _ = 1 to 50 do
                 let pt = Pt (rand.NextDouble() * 120.0 - 10.0, rand.NextDouble() * 120.0 - 10.0)
-                let struct (idx, d) = bvh.ClosestRect pt
+                let (idx, d) = bvh.ClosestRect pt
                 let mutable bestD = Double.MaxValue
                 for i = 0 to rects.Length - 1 do
                     bestD <- min bestD (ptRectDistance pt rects.[i])
@@ -165,8 +165,8 @@ let tests =
             let big = Bvh2d.createFromRects (rects, 16)
             for _ = 1 to 30 do
                 let pt = Pt (rand.NextDouble() * 120.0 - 10.0, rand.NextDouble() * 120.0 - 10.0)
-                let struct (_, dSmall) = small.ClosestRect pt
-                let struct (_, dBig) = big.ClosestRect pt
+                let (_, dSmall) = small.ClosestRect pt
+                let (_, dBig) = big.ClosestRect pt
                 assertThat dSmall (tag "the same distance for any leaf size" >> isCloseTo dBig)
             let inRect = BRect.createXY (10., 10., 40., 40.)
             let a = small.ItemsInRect inRect |> Set.ofSeq
@@ -233,7 +233,7 @@ let tests =
             for _ = 1 to 20 do
                 let pt = Pt (rand.NextDouble() * 100.0, rand.NextDouble() * 100.0)
                 let sqDistTo (d: Disk) = let v = max 0.0 (d.Center.DistanceTo pt - d.Radius) in v * v
-                let struct (idx, d) = bvh.ClosestItem (pt, sqDistTo)
+                let (idx, d) = bvh.ClosestItem (pt, sqDistTo)
                 let mutable bestD = Double.MaxValue
                 for i = 0 to disks.Length - 1 do
                     bestD <- min bestD (sqrt (sqDistTo disks.[i]))
@@ -259,7 +259,7 @@ let tests =
         test ("a tree of a single item answers all queries", fun _ ->
             let rects = [| BRect.createXY (0., 0., 1., 1.) |]
             let bvh = Bvh2d.createFromRects rects
-            let struct (idx, d) = bvh.ClosestRect (Pt (3., 1.))
+            let (idx, d) = bvh.ClosestRect (Pt (3., 1.))
             assertThat idx (tag "the only item is the closest" >> isEqualTo 0)
             assertThat d (tag "the distance to the only item" >> isCloseTo 2.0)
             assertThat (bvh.ItemsInRect (BRect.createXY (0.2, 0.2, 0.8, 0.8))).Count (tag "the only item is found" >> isEqualTo 1)
@@ -269,7 +269,7 @@ let tests =
         test ("2D line wrapper uses rectangle bounds", fun _ ->
             let lines = [| Line2D (0., 0., 1., 0.); Line2D (5., 0., 6., 0.) |]
             let bvh = LineBvh2d.create lines
-            let struct (idx, distance) = bvh.ClosestLine (Pt (0.5, 2.))
+            let (idx, distance) = bvh.ClosestLine (Pt (0.5, 2.))
             assertThat idx (tag "first line is closest" >> isEqualTo 0)
             assertThat distance (tag "exact planar line distance" >> isCloseTo 2.0)
         )
@@ -284,7 +284,7 @@ let tests =
             let bvh = LineBvh2d.create lines
             for _ = 1 to 25 do
                 let pt = Pt (rand.NextDouble() * 100.0, rand.NextDouble() * 100.0)
-                let struct (idx, d) = bvh.ClosestLine pt
+                let (idx, d) = bvh.ClosestLine pt
                 let mutable bestD = Double.MaxValue
                 for i = 0 to lines.Length - 1 do
                     bestD <- min bestD (sqrt (lines.[i].SqDistanceToPt pt))

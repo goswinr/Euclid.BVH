@@ -81,7 +81,7 @@ let tests =
             let lines = [| Line3D (0., 0., 0., 1., 0., 0.) |]
             let bvh = LineBvh.create lines
             assertThat bvh.Count (tag "count" >> isEqualTo 1)
-            let struct (i, d) = bvh.ClosestLine (Line3D (0., 2., 0., 1., 2., 0.))
+            let (i, d) = bvh.ClosestLine (Line3D (0., 2., 0., 1., 2., 0.))
             assertThat i (tag "closest index" >> isEqualTo 0)
             assertThat d (tag "closest distance" >> isCloseTo 2.0)
         )
@@ -91,7 +91,7 @@ let tests =
             let lines = randomLines rand 500
             let bvh = LineBvh.create lines
             let query = Line3D (10., 10., 5., 15., 12., 6.)
-            let struct (_, d) = bvh.ClosestLine query
+            let (_, d) = bvh.ClosestLine query
             let mutable bestD = Double.MaxValue
             for l in lines do
                 bestD <- min bestD (dist query l)
@@ -103,7 +103,7 @@ let tests =
             let lines = randomLines rand 300
             let bvh = LineBvh.create lines
             for i = 0 to lines.Length - 1 do
-                let struct (_, d) = bvh.ClosestLine (lines.[i], i)
+                let (_, d) = bvh.ClosestLine (lines.[i], i)
                 let _, bd = bruteNearest lines i
                 assertThat d (tag $"nearest neighbor distance of line {i}" >> isCloseTo bd)
         )
@@ -180,7 +180,7 @@ let tests =
                 [ 1; 2; 8; 32 ]
                 |> List.map (fun ls ->
                     let bvh = LineBvh.create (lines, ls)
-                    let struct (_, d) = bvh.ClosestLine query
+                    let (_, d) = bvh.ClosestLine query
                     d)
             for d in results do
                 assertThat d (tag "distance should not depend on leaf size" >> isCloseTo results.Head)
@@ -199,7 +199,7 @@ let tests =
             let lines = randomLines rand 500
             let bvh = LineBvh.create lines
             let pt = Pnt (42., 61., 7.)
-            let struct (i, d) = bvh.ClosestLine pt
+            let (i, d) = bvh.ClosestLine pt
             let mutable bestD = Double.MaxValue
             let mutable bestI = -1
             for j = 0 to lines.Length - 1 do
@@ -216,10 +216,10 @@ let tests =
             let lines = randomLines rand 200
             let bvh = LineBvh.create lines
             let pt = lines.[7].From // on line 7 itself
-            let struct (i0, d0) = bvh.ClosestLine pt
+            let (i0, d0) = bvh.ClosestLine pt
             assertThat i0 (tag "without skip, line 7 itself is closest" >> isEqualTo 7)
             assertThat d0 (tag "distance to own start point is zero" >> isCloseTo 0.0)
-            let struct (i1, _) = bvh.ClosestLine (pt, 7)
+            let (i1, _) = bvh.ClosestLine (pt, 7)
             assertThat i1 (tag "with skip, another line is found" >> isNotEqualTo 7)
         )
 
