@@ -6,8 +6,9 @@ open Scriptorium.Nib.Assertion
 open Asserts
 open type Scriptorium.Quill.Test
 
-/// A deterministic pseudo random generator so tests are repeatable.
-let private rand = Random 4242
+// Every test below creates its own seeded generator instead of sharing one. That keeps
+// each test repeatable on its own, whatever order the tests run in and whichever of them
+// run at all, and the seeds differ per test so they do not all see the same input.
 
 /// The squared distance between two axis aligned bounding rectangles, 0.0 if they overlap.
 let private sqRectDist (a: BRect) (b: BRect) =
@@ -32,7 +33,7 @@ let private ptRectDistance (p: Pt) (r: BRect) =
     sqrt (dx * dx + dy * dy)
 
 /// Creates random small rectangles, clustered unevenly in the plane to mimic real world input.
-let private randomRects (count: int) : BRect[] =
+let private randomRects (rand: Random) (count: int) : BRect[] =
     Array.init count (fun _ ->
         let cx = rand.NextDouble() * 100.0
         let cy = rand.NextDouble() * 100.0
@@ -75,15 +76,13 @@ let private diskSqDist (a: Disk) (b: Disk) : float =
     let d = max 0.0 (a.Center.DistanceTo b.Center - a.Radius - b.Radius)
     d * d
 
-let private randomDisks (count: int) : Disk[] =
+let private randomDisks (rand: Random) (count: int) : Disk[] =
     Array.init count (fun _ ->
         { Center = Pt (rand.NextDouble() * 100.0, rand.NextDouble() * 100.0)
           Radius = rand.NextDouble() * 1.5 })
 
-// testSequenced, not testList: the tests below share the module level 'rand', so they have
-// to run one after the other in declaration order to stay reproducible.
 let tests =
-    testSequenced ("Bvh2d", [
+    testList ("Bvh2d", [
         test ("build evaluates every bounding rectangle once", fun _ ->
             let mutable calls = 0
             let rects = [| BRect.createXY (0., 0., 1., 1.); BRect.createXY (2., 0., 3., 1.) |]
@@ -117,7 +116,8 @@ let tests =
         )
 
         test ("the tree rectangle is the union of all item rectangles", fun _ ->
-            let rects = randomRects 200
+            let rand = Random 2001
+            let rects = randomRects rand 200
             let bvh = Bvh2d.createFromRects rects
             let all = rects |> Array.reduce (fun a b -> a.Union b)
             assertThat bvh.Rectangle.MinX (tag "MinX of the tree rectangle" >> isCloseTo all.MinX)
@@ -129,7 +129,8 @@ let tests =
         )
 
         test ("closest rectangle to a query rectangle matches brute force", fun _ ->
-            let rects = randomRects 300
+            let rand = Random 2002
+            let rects = randomRects rand 300
             let bvh = Bvh2d.createFromRects rects
             for _ = 1 to 50 do
                 let x = rand.NextDouble() * 120.0 - 10.0
@@ -144,7 +145,8 @@ let tests =
         )
 
         test ("closest rectangle to a query point matches brute force", fun _ ->
-            let rects = randomRects 300
+            let rand = Random 2003
+            let rects = randomRects rand 300
             let bvh = Bvh2d.createFromRects rects
             for _ = 1 to 50 do
                 let pt = Pt (rand.NextDouble() * 120.0 - 10.0, rand.NextDouble() * 120.0 - 10.0)
@@ -157,7 +159,8 @@ let tests =
         )
 
         test ("leaf size does not change the query results", fun _ ->
-            let rects = randomRects 250
+            let rand = Random 2004
+            let rects = randomRects rand 250
             let small = Bvh2d.createFromRects (rects, 1)
             let big = Bvh2d.createFromRects (rects, 16)
             for _ = 1 to 30 do
@@ -172,7 +175,8 @@ let tests =
         )
 
         test ("nearest neighbors and closest pair match brute force", fun _ ->
-            let rects = randomRects 200
+            let rand = Random 2005
+            let rects = randomRects rand 200
             let bvh = Bvh2d.createFromRects rects
             let nn = bvh.NearestNeighbors ()
             assertThat nn.Length (tag "one neighbor per item" >> isEqualTo rects.Length)
@@ -191,7 +195,8 @@ let tests =
         )
 
         test ("close pairs match brute force", fun _ ->
-            let rects = randomRects 200
+            let rand = Random 2006
+            let rects = randomRects rand 200
             let bvh = Bvh2d.createFromRects rects
             for maxDist in [ 0.0; 1.0; 5.0 ] do
                 let found = bvh.ClosePairs maxDist |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
@@ -199,7 +204,8 @@ let tests =
         )
 
         test ("items in a rectangle and near a point match brute force", fun _ ->
-            let rects = randomRects 250
+            let rand = Random 2007
+            let rects = randomRects rand 250
             let bvh = Bvh2d.createFromRects rects
             let query = BRect.createXY (20., 20., 45., 60.)
             for tol in [ 0.0; 2.5 ] do
@@ -220,7 +226,8 @@ let tests =
         )
 
         test ("exact distance queries on a custom item type", fun _ ->
-            let disks = randomDisks 150
+            let rand = Random 2008
+            let disks = randomDisks rand 150
             let bvh = Bvh2d.create (disks, diskRect)
             // the closest disk to a point, measured to the disk outline:
             for _ = 1 to 20 do
@@ -268,6 +275,7 @@ let tests =
         )
 
         test ("2D line queries match brute force", fun _ ->
+            let rand = Random 2009
             let lines =
                 Array.init 200 (fun _ ->
                     let x = rand.NextDouble() * 100.0
