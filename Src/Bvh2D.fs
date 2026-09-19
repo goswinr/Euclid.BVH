@@ -70,15 +70,31 @@ module internal BvhUtil2D =
         // recursively builds the node for idx.[start .. start+count-1] into nodes.[nodeIdx] and its
         // subtree into the slots right after it. Returns the first free slot after the subtree.
         let rec buildNode nodeIdx start count : int =
-            let rect = rectOf start count
             if count <= leafSize then
+                let rect = rectOf start count
                 nodes.[nodeIdx] <- { Rect = rect; LeftOrStart = start; RightChild = -1; Count = count }
                 nodeIdx + 1
             else
-                // split at the median of the rectangle centers along the longer axis of this node's rectangle:
-                let sizeX = rect.MaxX - rect.MinX
-                let sizeY = rect.MaxY - rect.MinY
+                // Collect node bounds and center ranges together. Item length must not force
+                // a split along an axis where the centers have little or no separation.
+                let mutable rect = rects.[idx.[start]]
+                let mutable minX = (rect.MinX + rect.MaxX) * 0.5
+                let mutable minY = (rect.MinY + rect.MaxY) * 0.5
+                let mutable maxX = minX
+                let mutable maxY = minY
                 let last = start + count - 1
+                for i = start + 1 to last do
+                    let r = rects.[idx.[i]]
+                    rect <- rect.Union r
+                    let cx = (r.MinX + r.MaxX) * 0.5
+                    let cy = (r.MinY + r.MaxY) * 0.5
+                    if cx < minX then minX <- cx
+                    if cy < minY then minY <- cy
+                    if cx > maxX then maxX <- cx
+                    if cy > maxY then maxY <- cy
+                // Split on the greatest center spread; ties (including coincident centers) prefer X.
+                let sizeX = maxX - minX
+                let sizeY = maxY - minY
                 if sizeX >= sizeY then
                     for i = start to last do
                         let ii = idx.[i]
@@ -152,7 +168,7 @@ type Bvh2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
 
     /// <summary>Builds a Bvh2D from the given items.
     /// The tree is built top-down by splitting at the median of the item-rectangle centers
-    /// along the longer axis of the current bounding rectangle.</summary>
+    /// along the axis where those centers have the greatest spread.</summary>
     /// <param name="items">The items to build the tree from. The array is referenced, not copied. Do not mutate it afterwards.</param>
     /// <param name="getRect">A function returning the axis aligned bounding rectangle of an item.
     ///  It is called once per item at build time.</param>
@@ -613,7 +629,7 @@ type Bvh2D private () =
 
     /// <summary>Builds a Bvh2D from the given items.
     /// The tree is built top-down by splitting at the median of the item-rectangle centers
-    /// along the longer axis of the current bounding rectangle.</summary>
+    /// along the axis where those centers have the greatest spread.</summary>
     /// <param name="items">The items to build the tree from. The array is referenced, not copied. Do not mutate it afterwards.</param>
     /// <param name="getRect">A function returning the axis aligned bounding rectangle of an item.
     ///  It is called once per item at build time.</param>

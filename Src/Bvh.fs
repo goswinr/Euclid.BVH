@@ -185,16 +185,38 @@ module internal BvhUtil =
         // recursively builds the node for idx.[start .. start+count-1] into nodes.[nodeIdx] and its
         // subtree into the slots right after it. Returns the first free slot after the subtree.
         let rec buildNode nodeIdx start count : int =
-            let box = boxOf start count
             if count <= leafSize then
+                let box = boxOf start count
                 nodes.[nodeIdx] <- { Box = box; LeftOrStart = start; RightChild = -1; Count = count }
                 nodeIdx + 1
             else
-                // split at the median of the box centers along the longest axis of this node's box:
-                let sizeX = box.MaxX - box.MinX
-                let sizeY = box.MaxY - box.MinY
-                let sizeZ = box.MaxZ - box.MinZ
+                // Collect the node bounds and center ranges in the same pass. Long items can
+                // share a center along their longest axis, so box size is not a useful split guide.
+                let mutable box = boxes.[idx.[start]]
+                let mutable minX = (box.MinX + box.MaxX) * 0.5
+                let mutable minY = (box.MinY + box.MaxY) * 0.5
+                let mutable minZ = (box.MinZ + box.MaxZ) * 0.5
+                let mutable maxX = minX
+                let mutable maxY = minY
+                let mutable maxZ = minZ
                 let last = start + count - 1
+                for i = start + 1 to last do
+                    let b = boxes.[idx.[i]]
+                    box <- box.Union b
+                    let cx = (b.MinX + b.MaxX) * 0.5
+                    let cy = (b.MinY + b.MaxY) * 0.5
+                    let cz = (b.MinZ + b.MaxZ) * 0.5
+                    if cx < minX then minX <- cx
+                    if cy < minY then minY <- cy
+                    if cz < minZ then minZ <- cz
+                    if cx > maxX then maxX <- cx
+                    if cy > maxY then maxY <- cy
+                    if cz > maxZ then maxZ <- cz
+                // Split at the median along the axis with the greatest spread of centers.
+                // Ties (including all coincident centers) prefer X, then Y, then Z.
+                let sizeX = maxX - minX
+                let sizeY = maxY - minY
+                let sizeZ = maxZ - minZ
                 if sizeX >= sizeY && sizeX >= sizeZ then
                     for i = start to last do
                         let ii = idx.[i]
@@ -335,7 +357,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
 
     /// <summary>Builds a Bvh from the given items.
     /// The tree is built top-down by splitting at the median of the item-box centers
-    /// along the longest axis of the current bounding box.</summary>
+    /// along the axis where those centers have the greatest spread.</summary>
     /// <param name="items">The items to build the tree from. The array is referenced, not copied. Do not mutate it afterwards.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>
@@ -798,7 +820,7 @@ type Bvh private () =
 
     /// <summary>Builds a Bvh from the given items.
     /// The tree is built top-down by splitting at the median of the item-box centers
-    /// along the longest axis of the current bounding box.</summary>
+    /// along the axis where those centers have the greatest spread.</summary>
     /// <param name="items">The items to build the tree from. The array is referenced, not copied. Do not mutate it afterwards.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>

@@ -51,4 +51,51 @@ let tests =
                         for i = 1 to level.Length - 1 do
                             assertThat (level.[i - 1].MaxX <= level.[i].MinX) (tag $"{name}: sibling ranges stay ordered" >> isTrue)
         )
+
+        test ("3D center splits prune long parallel lines on every axis", fun _ ->
+            let count = 2048
+            // An odd multiplier permutes these power-of-two offsets without sorting them spatially.
+            let offsets = Array.init count (fun i -> float ((i * 811) % count))
+            let q = float (count / 2) + 0.25
+            for axis = 0 to 2 do
+                let makeLine offset =
+                    match axis with
+                    | 0 -> Line3D (offset, 0., 0., offset, 1e6, 0.)
+                    | 1 -> Line3D (0., offset, 0., 0., offset, 1e6)
+                    | _ -> Line3D (0., 0., offset, 1e6, 0., offset)
+                let query =
+                    match axis with
+                    | 0 -> Pnt (q, 5e5, 0.)
+                    | 1 -> Pnt (0., q, 5e5)
+                    | _ -> Pnt (5e5, 0., q)
+                let tree = Bvh.create (Array.map makeLine offsets, BBox.createFromLine)
+                let mutable calls = 0
+                let idx, distance = tree.ClosestItem (query, fun line ->
+                    calls <- calls + 1
+                    line.SqDistanceToPnt query)
+                assertThat offsets.[idx] (tag $"axis {axis}: nearest line" >> isEqualTo (float (count / 2)))
+                assertThat distance (tag $"axis {axis}: nearest distance" >> isCloseTo 0.25)
+                // Count exact geometry tests instead of relying on machine-dependent timings.
+                assertThat (calls <= 32) (tag $"axis {axis}: should prune most of the {count} lines, tested {calls}" >> isTrue)
+        )
+
+        test ("2D center splits prune long parallel lines on either axis", fun _ ->
+            let count = 2048
+            // Use the same deterministic permutation on .NET and Fable.
+            let offsets = Array.init count (fun i -> float ((i * 811) % count))
+            let q = float (count / 2) + 0.25
+            for axis = 0 to 1 do
+                let makeLine offset =
+                    if axis = 0 then Line2D (offset, 0., offset, 1e6)
+                    else Line2D (0., offset, 1e6, offset)
+                let query = if axis = 0 then Pt (q, 5e5) else Pt (5e5, q)
+                let tree = Bvh2D.create (Array.map makeLine offsets, BRect.createFromLine)
+                let mutable calls = 0
+                let idx, distance = tree.ClosestItem (query, fun line ->
+                    calls <- calls + 1
+                    line.SqDistanceToPt query)
+                assertThat offsets.[idx] (tag $"axis {axis}: nearest line" >> isEqualTo (float (count / 2)))
+                assertThat distance (tag $"axis {axis}: nearest distance" >> isCloseTo 0.25)
+                assertThat (calls <= 32) (tag $"axis {axis}: should prune most of the {count} lines, tested {calls}" >> isTrue)
+        )
     ])

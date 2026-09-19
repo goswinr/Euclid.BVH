@@ -38,7 +38,7 @@ type LineBvh2D private (bvh: Bvh2D<Line2D>) =
 
     /// <summary>Builds a LineBvh2D from the given lines.
     /// The tree is built top-down by splitting at the median of the line-rectangle centers
-    /// along the longest axis of the current bounding rectangle.</summary>
+    /// along the axis where those centers have the greatest spread.</summary>
     /// <param name="lines">The 2D lines to build the tree from. The array is referenced, not copied. Do not mutate it afterwards.</param>
     /// <param name="leafSize">The maximum amount of lines per leaf node. Optional, 4 by default.</param>
     /// <returns>A new immutable LineBvh2D.</returns>

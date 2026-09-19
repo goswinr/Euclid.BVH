@@ -24,8 +24,8 @@ For finding pairs of closest lines among many static, unevenly distributed 3D li
   automatically to uneven, clustered input. No tuning of cell sizes is needed.
 - Unlike a k-d tree over points, it stores whole line segments. A line is in exactly one leaf,
   so no line has to be split or duplicated.
-- Since the lines are static, the tree is built once (top-down median split along the longest
-  axis, typically `O(n log n)`) and is then immutable and cheap to query.
+- Since the lines are static, the tree is built once (top-down median splits along the axis
+  with the greatest spread of item centers, typically `O(n log n)`) and is then immutable and cheap to query.
 - Distances between axis aligned bounding boxes (`BBox`) give cheap lower bounds for the
   distance between the lines inside them, which lets branch-and-bound queries skip most of
   the tree.

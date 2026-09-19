@@ -40,7 +40,7 @@ type LineBvh private (bvh: Bvh<Line3D>) =
 
     /// <summary>Builds a LineBvh from the given lines.
     /// The tree is built top-down by splitting at the median of the line-box centers
-    /// along the longest axis of the current bounding box.</summary>
+    /// along the axis where those centers have the greatest spread.</summary>
     /// <param name="lines">The 3D lines to build the tree from. The array is referenced, not copied. Do not mutate it afterwards.</param>
     /// <param name="leafSize">The maximum amount of lines per leaf node. Optional, 4 by default.</param>
     /// <returns>A new immutable LineBvh.</returns>

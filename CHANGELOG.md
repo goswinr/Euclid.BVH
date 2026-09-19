@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - These queries walk the tree best first with a min heap, so taking only the first few entries visits only the part of the tree that is closer than the last entry taken, and costs about as much as the corresponding `Closest*` query.
 
 ### Changed
+- The 2D and 3D tree builders now split along the axis with the greatest spread of item centers, improving pruning for long parallel items whose centers coincide along their longest axis.
 - Tests now run on [Scriptorium](https://fable-hub.github.io/Scriptorium/guides/getting-started/) (`Scriptorium.Quill` and `Scriptorium.Nib`) on every target, replacing Expecto on .NET and Fable.Mocha plus the `mocha` npm package on JavaScript.
 - The JavaScript tests are run by `dotnet fable --runScript` instead of `mocha`, so `Test/package.json` has no runtime test dependency left.
 - Breaking: `ClosestItem`, `ClosestBox`, `ClosestRect` and `ClosestLine` now return a plain tuple `(int * float)` instead of a struct tuple, matching the rest of the public API.
