@@ -277,7 +277,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// The default maximum amount of items per leaf node.
     static member val DefaultLeafSize = 4 with get
 
-    /// The input items this Bvh was built from. Do not mutate this array.
+    /// The input collection this Bvh was built from. Do not modify the collection or its items after construction.
     member _.Items = items
 
     /// The bounding box of each input item, in the same order as Items. Do not mutate this array.
@@ -314,7 +314,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
 
 
     /// <summary>Builds a Bvh from the given resizable array of items.</summary>
-    /// <param name="items">The items to build the tree from. They are copied to an array at build time.</param>
+    /// <param name="items">The items to build the tree from. The ResizeArray is used directly, not copied. Do not modify it or its items afterwards.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
@@ -587,9 +587,10 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// <summary>Finds the indices of all items whose bounding box is closer to the given
     /// axis aligned bounding box than the given tolerance.</summary>
     /// <param name="box">The axis aligned bounding box to search in.</param>
-    /// <param name="tolerance">The tolerance distance around the box. Optional, 0.0 by default.</param>
+    /// <param name="tolerance">The tolerance distance around the box. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
     member _.ItemsInBox (box: BBox, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+        if tolerance < 0.0 then fail $"Bvh.ItemsInBox: tolerance {tolerance} must not be negative."
         let sqTol = tolerance * tolerance
         let result = ResizeArray<int>()
         let rec search nodeIdx =
@@ -610,9 +611,10 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// 3D point than the given tolerance.
     /// The distance between a point and a box is 0.0 if the point is inside or on the box.</summary>
     /// <param name="pt">The 3D point to search around.</param>
-    /// <param name="tolerance">The tolerance distance around the point. Optional, 0.0 by default.</param>
+    /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
     member _.ItemsNearPoint (pt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+        if tolerance < 0.0 then fail $"Bvh.ItemsNearPoint: tolerance {tolerance} must not be negative."
         let sqTol = tolerance * tolerance
         let result = ResizeArray<int>()
         let rec search nodeIdx =
@@ -770,7 +772,7 @@ type Bvh private () =
         Bvh<'T>.create (items, getBox, leafSize)
 
     /// <summary>Builds a Bvh from the given resizable array of items.</summary>
-    /// <param name="items">The items to build the tree from. They are copied to an array at build time.</param>
+    /// <param name="items">The items to build the tree from. The ResizeArray is used directly, not copied. Do not modify it or its items afterwards.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>

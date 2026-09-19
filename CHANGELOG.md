@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Breaking: `ClosestItem`, `ClosestBox`, `ClosestRect` and `ClosestLine` now return a plain tuple `(int * float)` instead of a struct tuple, matching the rest of the public API.
 - Breaking: renamed `Bvh2d`, `LineBvh2d` and `LinePair2d` to `Bvh2D`, `LineBvh2D` and `LinePair2D`.
 
+### Fixed
+- Box, rectangle and point range queries now reject negative tolerances, including the corresponding line queries.
+- Corrected the XML documentation for `ResizeArray` constructors: the input collection is used directly and must not be modified after construction.
+
 ## [0.1.0] - 2026-09-07
 ### Added
 - `Bvh<'T>`: a generic static Bounding Volume Hierarchy over any item type, built from items plus a bounding box function (`Bvh.create`) or directly from `BBox[]` (`Bvh.createFromBoxes`).

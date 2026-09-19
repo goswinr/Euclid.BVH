@@ -176,6 +176,14 @@ let tests =
             assertThat pairs (tag "overlapping box pairs should match brute force" >> isEqualTo brute)
         )
 
+        test ("box and point queries reject negative tolerances", fun _ ->
+            let box = BBox.createFromCenter (Pnt (0., 0., 0.), 2., 2., 2.)
+            let bvh = Bvh.createFromBoxes [| box |]
+            for tolerance in [ -1.0; -1e-200 ] do
+                assertThat (fun () -> bvh.ItemsInBox (box, tolerance) |> ignore) (tag $"negative box tolerance {tolerance}" >> throws)
+                assertThat (fun () -> bvh.ItemsNearPoint (Pnt (0., 0., 0.), tolerance) |> ignore) (tag $"negative point tolerance {tolerance}" >> throws)
+        )
+
         test ("items in box matches brute force", fun _ ->
             let rand = Random 1008
             let boxes = randomBoxes rand 300

@@ -116,7 +116,7 @@ type Bvh2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// The default maximum amount of items per leaf node.
     static member val DefaultLeafSize = 4 with get
 
-    /// The input items this Bvh2D was built from. Do not mutate this array.
+    /// The input collection this Bvh2D was built from. Do not modify the collection or its items after construction.
     member _.Items = items
 
     /// The bounding rectangle of each input item, in the same order as Items. Do not mutate this array.
@@ -166,7 +166,7 @@ type Bvh2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
         Bvh2D<'T>.createWithRects (items, rects, leafSize)
 
     /// <summary>Builds a Bvh2D from the given resizable array of items.</summary>
-    /// <param name="items">The items to build the tree from. They are copied to an array at build time.</param>
+    /// <param name="items">The items to build the tree from. The ResizeArray is used directly, not copied. Do not modify it or its items afterwards.</param>
     /// <param name="getRect">A function returning the axis aligned bounding rectangle of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
@@ -438,9 +438,10 @@ type Bvh2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// <summary>Finds the indices of all items whose bounding rectangle is closer to the given
     /// axis aligned bounding rectangle than the given tolerance.</summary>
     /// <param name="rect">The axis aligned bounding rectangle to search in.</param>
-    /// <param name="tolerance">The tolerance distance around the rectangle. Optional, 0.0 by default.</param>
+    /// <param name="tolerance">The tolerance distance around the rectangle. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
     member _.ItemsInRect (rect: BRect, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+        if tolerance < 0.0 then fail $"Bvh2D.ItemsInRect: tolerance {tolerance} must not be negative."
         let sqTol = tolerance * tolerance
         let result = ResizeArray<int>()
         let rec search nodeIdx =
@@ -461,9 +462,10 @@ type Bvh2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// 2D point than the given tolerance.
     /// The distance between a point and a rectangle is 0.0 if the point is inside or on the rectangle.</summary>
     /// <param name="pt">The 2D point to search around.</param>
-    /// <param name="tolerance">The tolerance distance around the point. Optional, 0.0 by default.</param>
+    /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
     member _.ItemsNearPoint (pt: Pt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+        if tolerance < 0.0 then fail $"Bvh2D.ItemsNearPoint: tolerance {tolerance} must not be negative."
         let sqTol = tolerance * tolerance
         let result = ResizeArray<int>()
         let rec search nodeIdx =
@@ -621,7 +623,7 @@ type Bvh2D private () =
         Bvh2D<'T>.create (items, getRect, leafSize)
 
     /// <summary>Builds a Bvh2D from the given resizable array of items.</summary>
-    /// <param name="items">The items to build the tree from. They are copied to an array at build time.</param>
+    /// <param name="items">The items to build the tree from. The ResizeArray is used directly, not copied. Do not modify it or its items afterwards.</param>
     /// <param name="getRect">A function returning the axis aligned bounding rectangle of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>

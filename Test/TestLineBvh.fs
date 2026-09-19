@@ -159,6 +159,14 @@ let tests =
             assertThat (fun () -> bvh.ClosePairs -1.0 |> ignore) (tag "negative tolerance should throw" >> throws)
         )
 
+        test ("line range queries reject negative tolerances", fun _ ->
+            let line = Line3D (0., 0., 0., 1., 0., 0.)
+            let bvh = LineBvh.create [| line |]
+            for tolerance in [ -1.0; -1e-200 ] do
+                assertThat (fun () -> bvh.LinesInBox (BBox.createFromLine line, tolerance) |> ignore) (tag $"negative line box tolerance {tolerance}" >> throws)
+                assertThat (fun () -> bvh.LinesNearPoint (Pnt (0.5, 0., 0.), tolerance) |> ignore) (tag $"negative line point tolerance {tolerance}" >> throws)
+        )
+
         test ("lines in box matches brute force", fun _ ->
             let rand = Random 3008
             let lines = randomLines rand 300

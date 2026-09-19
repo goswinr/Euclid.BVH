@@ -203,6 +203,14 @@ let tests =
                 assertThat found (tag $"all pairs closer than {maxDist}" >> isEqualTo (brutePairs rects maxDist))
         )
 
+        test ("rectangle and point queries reject negative tolerances", fun _ ->
+            let rect = BRect.createXY (-1., -1., 1., 1.)
+            let bvh = Bvh2D.createFromRects [| rect |]
+            for tolerance in [ -1.0; -1e-200 ] do
+                assertThat (fun () -> bvh.ItemsInRect (rect, tolerance) |> ignore) (tag $"negative rectangle tolerance {tolerance}" >> throws)
+                assertThat (fun () -> bvh.ItemsNearPoint (Pt (0., 0.), tolerance) |> ignore) (tag $"negative point tolerance {tolerance}" >> throws)
+        )
+
         test ("items in a rectangle and near a point match brute force", fun _ ->
             let rand = Random 2007
             let rects = randomRects rand 250
@@ -272,6 +280,14 @@ let tests =
             let (idx, distance) = bvh.ClosestLine (Pt (0.5, 2.))
             assertThat idx (tag "first line is closest" >> isEqualTo 0)
             assertThat distance (tag "exact planar line distance" >> isCloseTo 2.0)
+        )
+
+        test ("2D line range queries reject negative tolerances", fun _ ->
+            let line = Line2D (0., 0., 1., 0.)
+            let bvh = LineBvh2D.create [| line |]
+            for tolerance in [ -1.0; -1e-200 ] do
+                assertThat (fun () -> bvh.LinesInRect (BRect.createFromLine line, tolerance) |> ignore) (tag $"negative line rectangle tolerance {tolerance}" >> throws)
+                assertThat (fun () -> bvh.LinesNearPoint (Pt (0.5, 0.), tolerance) |> ignore) (tag $"negative line point tolerance {tolerance}" >> throws)
         )
 
         test ("2D line queries match brute force", fun _ ->

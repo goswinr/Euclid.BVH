@@ -99,7 +99,7 @@ type LineBvh2D private (bvh: Bvh2D<Line2D>) =
     /// <summary>Finds the indices of all lines whose bounding rectangle is closer to the given
     /// axis aligned bounding rectangle than the given tolerance.</summary>
     /// <param name="rect">The axis aligned bounding rectangle to search in.</param>
-    /// <param name="tolerance">The tolerance distance around the rectangle. Optional, 0.0 by default.</param>
+    /// <param name="tolerance">The tolerance distance around the rectangle. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found lines in the input array.</returns>
     member _.LinesInRect (rect: BRect, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
         bvh.ItemsInRect (rect, tolerance)
@@ -107,7 +107,7 @@ type LineBvh2D private (bvh: Bvh2D<Line2D>) =
     /// <summary>Finds the indices of all lines whose bounding rectangle is closer to the given
     /// 2D point than the given tolerance.</summary>
     /// <param name="pt">The 2D point to search around.</param>
-    /// <param name="tolerance">The tolerance distance around the point. Optional, 0.0 by default.</param>
+    /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found lines in the input array.</returns>
     member _.LinesNearPoint (pt: Pt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
         bvh.ItemsNearPoint (pt, tolerance)
