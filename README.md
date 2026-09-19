@@ -25,7 +25,7 @@ For finding pairs of closest lines among many static, unevenly distributed 3D li
 - Unlike a k-d tree over points, it stores whole line segments. A line is in exactly one leaf,
   so no line has to be split or duplicated.
 - Since the lines are static, the tree is built once (top-down median split along the longest
-  axis, `O(n log n)`) and is then immutable and cheap to query.
+  axis, typically `O(n log n)`) and is then immutable and cheap to query.
 - Distances between axis aligned bounding boxes (`BBox`) give cheap lower bounds for the
   distance between the lines inside them, which lets branch-and-bound queries skip most of
   the tree.
@@ -38,7 +38,7 @@ open Euclid
 // thousands of static 3D lines:
 let lines : Line3D[] = ...
 
-// build once, O(n log n):
+// build once, typically O(n log n):
 let bvh = LineBvh.create lines
 
 // the closest line to a query line:

@@ -18,6 +18,7 @@ let main _ =
     runTestsWith (
         noTimeout >> slowThreshold 2000,
         [
+            TestBuild.tests
             TestBvh.tests
             TestBvh2D.tests
             TestLineBvh.tests

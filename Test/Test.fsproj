@@ -10,6 +10,7 @@
     <ProjectReference Include="../Euclid.BVH.fsproj" />
 
     <Compile Include="Asserts.fs" />
+    <Compile Include="TestBuild.fs" />
     <Compile Include="TestBvh.fs" />
     <Compile Include="TestBvh2D.fs" />
     <Compile Include="TestLineBvh.fs" />

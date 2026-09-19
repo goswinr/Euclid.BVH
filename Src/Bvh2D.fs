@@ -88,7 +88,7 @@ module internal BvhUtil2D =
                         let ii = idx.[i]
                         keys.[i] <- (rects.[ii].MinY + rects.[ii].MaxY) * 0.5
                 let mid = count / 2
-                // only partition around the median, do not sort the whole range:
+                // Partition around the median, with a sort fallback only if selection exceeds its budget:
                 BvhUtil.selectNth idx keys start last (start + mid)
                 let left = nodeIdx + 1
                 let right = buildNode left start mid

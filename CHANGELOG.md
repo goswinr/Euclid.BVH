@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Breaking: renamed `Bvh2d`, `LineBvh2d` and `LinePair2d` to `Bvh2D`, `LineBvh2D` and `LinePair2D`.
 
 ### Fixed
+- Tree building now limits quickselect's partition work and falls back to an in-place heap sort of the remaining range, avoiding quadratic selection on structured input orders in both 2D and 3D.
 - Box, rectangle and point range queries now reject negative tolerances, including the corresponding line queries.
 - Corrected the XML documentation for `ResizeArray` constructors: the input collection is used directly and must not be modified after construction.
 

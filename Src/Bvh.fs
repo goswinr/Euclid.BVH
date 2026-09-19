@@ -91,11 +91,40 @@ module internal BvhUtil =
             let mid = count / 2
             1 + nodeCount mid leafSize + nodeCount (count - mid) leafSize
 
+    /// Sorts a range of parallel indices and keys in place with heap sort.
+    /// Used only when quickselect has spent its work budget; O(n log n) even on adversarial input.
+    let private sortRange (idx: int[]) (keys: float[]) (first: int) (last: int) : unit =
+        let inline swap i j =
+            let ti = idx.[i] in idx.[i] <- idx.[j] ; idx.[j] <- ti
+            let tk = keys.[i] in keys.[i] <- keys.[j] ; keys.[j] <- tk
+        // Heap positions are relative to first, so ranges inside a subtree stay isolated.
+        let siftDown root count =
+            let mutable parent = root
+            let mutable go = true
+            while go && parent < count / 2 do
+                let left = 2 * parent + 1
+                let right = left + 1
+                let child =
+                    if right < count && keys.[first + right] > keys.[first + left] then right
+                    else left
+                if keys.[first + child] > keys.[first + parent] then
+                    swap (first + parent) (first + child)
+                    parent <- child
+                else
+                    go <- false
+        let count = last - first + 1
+        for root = count / 2 - 1 downto 0 do
+            siftDown root count
+        for remaining = count - 1 downto 1 do
+            swap first (first + remaining)
+            siftDown 0 remaining
+
     /// Reorders idx.[first..last], together with the parallel keys, such that position k holds the item
     /// that a full sort by key would put there. All items before k have a smaller or equal key,
     /// all items after k a bigger or equal one.
-    /// This is a quickselect with a three way partition. It runs in place, in linear time on average,
-    /// and does not allocate. Only the median is needed for the split, so a full sort would be wasted work.
+    /// This is a quickselect with a three way partition. It runs in place, in linear time on average.
+    /// A linear budget of scanned items bounds the quickselect work; if exhausted, heap sort finishes
+    /// the remaining range in O(n log n) without allocating another array.
     let selectNth (idx: int[]) (keys: float[]) (first: int) (last: int) (k: int) : unit =
         let inline swap i j =
             let ti = idx.[i] in idx.[i] <- idx.[j] ; idx.[j] <- ti
@@ -103,28 +132,35 @@ module internal BvhUtil =
         let mutable lo = first
         let mutable hi = last
         let mutable go = true
+        // Use float for the budget to avoid overflowing an int on very large input arrays.
+        let mutable budget = 8.0 * float (last - first + 1)
         while go && lo < hi do
-            // the median of the first, middle and last key as the pivot,
-            // so that sorted or reversed input does not degenerate to quadratic time:
-            let a = keys.[lo]
-            let b = keys.[lo + (hi - lo) / 2]
-            let c = keys.[hi]
-            let pivot =
-                if a < b then (if b < c then b elif a < c then c else a)
-                else          (if a < c then a elif b < c then c else b)
-            // partition lo..hi into three parts: smaller than the pivot, equal to it, bigger than it.
-            // The equal part is never empty, so each iteration shrinks the range and the loop terminates.
-            let mutable lt = lo // keys.[lo   .. lt-1] are smaller than the pivot
-            let mutable gt = hi // keys.[gt+1 .. hi  ] are bigger than the pivot
-            let mutable i  = lo // keys.[lt   .. i-1 ] are equal to the pivot
-            while i <= gt do
-                let v = keys.[i]
-                if   v < pivot then swap i lt ; lt <- lt + 1 ; i <- i + 1
-                elif v > pivot then swap i gt ; gt <- gt - 1 // i is not advanced, the swapped in key is still unseen
-                else                            i <- i + 1
-            if   k < lt then hi <- lt - 1 // the k-th item is in the smaller part
-            elif k > gt then lo <- gt + 1 // the k-th item is in the bigger part
-            else             go <- false  // the k-th item is in the equal part, it is already in place
+            let work = float (hi - lo + 1)
+            if work > budget then
+                sortRange idx keys lo hi
+                go <- false
+            else
+                budget <- budget - work
+                // Median of the first, middle and last key works well for ordinary input orders.
+                let a = keys.[lo]
+                let b = keys.[lo + (hi - lo) / 2]
+                let c = keys.[hi]
+                let pivot =
+                    if a < b then (if b < c then b elif a < c then c else a)
+                    else          (if a < c then a elif b < c then c else b)
+                // Partition lo..hi into parts smaller than, equal to and bigger than the pivot.
+                // The equal part is never empty, so each iteration shrinks the range.
+                let mutable lt = lo // keys.[lo   .. lt-1] are smaller than the pivot
+                let mutable gt = hi // keys.[gt+1 .. hi  ] are bigger than the pivot
+                let mutable i  = lo // keys.[lt   .. i-1 ] are equal to the pivot
+                while i <= gt do
+                    let v = keys.[i]
+                    if   v < pivot then swap i lt ; lt <- lt + 1 ; i <- i + 1
+                    elif v > pivot then swap i gt ; gt <- gt - 1 // the swapped in key is still unseen
+                    else                            i <- i + 1
+                if   k < lt then hi <- lt - 1
+                elif k > gt then lo <- gt + 1
+                else             go <- false
 
     /// Builds the flattened node array for the given boxes.
     /// Returns the permutation of item indices, the nodes and the index of the root node.
@@ -172,7 +208,7 @@ module internal BvhUtil =
                         let ii = idx.[i]
                         keys.[i] <- (boxes.[ii].MinZ + boxes.[ii].MaxZ) * 0.5
                 let mid = count / 2
-                // only partition around the median, do not sort the whole range:
+                // Partition around the median, with a sort fallback only if selection exceeds its budget:
                 selectNth idx keys start last (start + mid)
                 let left = nodeIdx + 1
                 let right = buildNode left start mid
