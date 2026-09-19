@@ -5,7 +5,7 @@
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../Euclid.BVH.fsproj" />
+    <ProjectReference Include="../../Src/Euclid.BVH.fsproj" />
     <Compile Include="Visualisation.fs" />
   </ItemGroup>
 </Project>

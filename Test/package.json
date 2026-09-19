@@ -2,7 +2,7 @@
   "type": "module",
   "scripts": {
     "checkTS": "tsc",
-    "buildTS": "dotnet fable ../Euclid.BVH.fsproj --lang typescript --outDir ./_ts --configuration Release --run npm run checkTS",
+    "buildTS": "dotnet fable ../Src/Euclid.BVH.fsproj --lang typescript --outDir ./_ts --configuration Release --run npm run checkTS",
     "testJS": "dotnet fable --outDir dist/testsRelease --noCache --configuration Release --runScript",
     "testJSDebug": "dotnet fable --outDir dist/testsDebug --noCache --configuration Debug --runScript",
     "buildVisualisation": "dotnet fable svgVisualisation/Visualisation.fsproj --outDir svgVisualisation/dist --noCache --configuration Release && dotnet fable nearestNeighboursVisualisation/Visualisation.fsproj --outDir nearestNeighboursVisualisation/dist --noCache --configuration Release",

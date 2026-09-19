@@ -7,7 +7,7 @@
   <ItemGroup>
     <PackageReference Include="Scriptorium.Quill" Version="0.7.1" />
     <PackageReference Include="Scriptorium.Nib" Version="0.4.1" />
-    <ProjectReference Include="../Euclid.BVH.fsproj" />
+    <ProjectReference Include="../Src/Euclid.BVH.fsproj" />
 
     <Compile Include="Asserts.fs" />
     <Compile Include="TestBuild.fs" />

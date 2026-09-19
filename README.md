@@ -1,3 +1,5 @@
+![Logo](https://raw.githubusercontent.com/goswinr/Euclid.BVH/main/Docs/img/logo128.png)
+
 # Euclid.BVH
 
 [![Euclid.BVH on nuget.org](https://img.shields.io/nuget/v/Euclid.BVH)](https://www.nuget.org/packages/Euclid.BVH/)
@@ -42,10 +44,10 @@ let lines : Line3D[] = ...
 let bvh = LineBvh.create lines
 
 // the closest line to a query line:
-let (index, distance) = bvh.ClosestLine (Line3D (0., 0., 0., 1., 1., 1.))
+let index, distance = bvh.ClosestLine (Line3D (0., 0., 0., 1., 1., 1.))
 
 // the nearest neighbor of a line that is itself in the tree (excluding itself):
-let (neighbor, dist) = bvh.ClosestLine (lines.[42], 42)
+let neighbor, dist = bvh.ClosestLine (lines.[42], 42)
 
 // the globally closest pair of lines:
 let pair = bvh.ClosestPair ()   // pair.IdxA, pair.IdxB, pair.Distance
@@ -61,7 +63,7 @@ let hits = bvh.LinesInBox (BBox.createFromSeq [ Pnt (0., 0., 0.); Pnt (10., 10.,
 
 // point queries: the closest line to a 3D point, the closest point on any line,
 // and all lines near a point:
-let (idx, dist) = bvh.ClosestLine (Pnt (5., 5., 5.))
+let idx, dist = bvh.ClosestLine (Pnt (5., 5., 5.))
 let closestPt = bvh.ClosestPoint (Pnt (5., 5., 5.))
 let nearby = bvh.LinesNearPoint (Pnt (5., 5., 5.), 2.0)
 
@@ -96,7 +98,7 @@ let bvh = Bvh.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radi
 let sqDist a b = let d = max 0.0 (a.Center.DistanceTo b.Center - a.Radius - b.Radius) in d * d
 let pair = bvh.ClosestPair sqDist                 // globally closest pair of balls
 let touching = bvh.ClosePairs (0.1, sqDist)       // all pairs of balls closer than 0.1
-let (i, d) = bvh.ClosestItem (queryBox, sqDist query)  // closest ball to a query ball
+let i, d = bvh.ClosestItem (queryBox, sqDist query)  // closest ball to a query ball
 ```
 
 The bounding box distance is always a lower bound of the exact distance, so the tree can
@@ -114,12 +116,12 @@ less arithmetic per distance test than the 3D `Bvh<'T>`.
 ```fsharp
 let rects : BRect[] = ...
 let bvh = Bvh2D.createFromRects rects
-let (index, distance) = bvh.ClosestRect (Pt (5., 5.))
+let index, distance = bvh.ClosestRect (Pt (5., 5.))
 let nearby = bvh.ItemsInRect (BRect.createXY (0., 0., 10., 10.))
 
 let lines : Line2D[] = ...
 let lineBvh = LineBvh2D.create lines
-let (lineIndex, lineDistance) = lineBvh.ClosestLine (Pt (5., 5.))
+let lineIndex, lineDistance = lineBvh.ClosestLine (Pt (5., 5.))
 ```
 
 ### Nearest first enumeration
@@ -194,7 +196,7 @@ printfn $"closest pair: {worst.IdxA} and {worst.IdxB} at distance {worst.Distanc
 let mousePt = Pnt (50., 50., 50.)
 
 // index of and distance to the nearest line:
-let (idx, dist) = bvh.ClosestLine mousePt
+let idx, dist = bvh.ClosestLine mousePt
 
 // the exact point on that line to snap to:
 let snapPt = bvh.ClosestPoint mousePt
