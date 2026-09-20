@@ -78,6 +78,37 @@ let private randomBalls (rand: Random) (count: int) : Ball[] =
 let tests =
     testList ("BVH", [
 
+        test ("zero tolerance includes touching and degenerate bounds at every leaf size", fun _ ->
+            let boxes = [|
+                BBox.createUnchecked(0., 0., 0., 0., 0., 0.)
+                BBox.createUnchecked(-1., -1., -1., 1., 1., 1.)
+                BBox.createUnchecked(2., -1., -1., 2., 1., 1.)
+                BBox.createUnchecked(-2., 2., 0., 2., 2., 0.)
+                BBox.createUnchecked(5., 5., 5., 6., 6., 6.)
+            |]
+            let points = [| Pnt(0., 0., 0.); Pnt(-1., -1., -1.); Pnt(1., 1., 1.); Pnt(2., 0., 0.); Pnt(0., 2., 0.); Pnt(3., 3., 3.); Pnt(6., 6., 6.) |]
+            for leafSize in [| 1; 2; 4; 16 |] do
+                let tree = BVH.createFromBoxes(boxes, leafSize)
+                for pt in points do
+                    let expected = boxes |> Array.indexed |> Array.choose (fun (i, b) -> if b.ContainsPnt pt then Some i else None)
+                    for tolerance in [| 0.0; -0.0 |] do
+                        assertThat (tree.ItemsNearPoint(pt, tolerance).ToArray() |> Array.sort) (tag "point boundaries" >> isEqualTo expected)
+                    let query = BBox.createUnchecked(pt.X, pt.Y, pt.Z, pt.X + 1., pt.Y + 1., pt.Z + 1.)
+                    let expected = boxes |> Array.indexed |> Array.choose (fun (i, b) -> if b.IsOverlapping query then Some i else None)
+                    assertThat (tree.ItemsInBox(query).ToArray() |> Array.sort) (tag "touching boxes" >> isEqualTo expected)
+            let single = BVH.createFromBoxes [| boxes.[0] |]
+            assertThat (single.ItemsNearPoint(Pnt(0., 0., 0.)).Count) (tag "single point hit" >> isEqualTo 1)
+            assertThat (single.ItemsNearPoint(Pnt(1., 0., 0.)).Count) (tag "single point miss" >> isEqualTo 0)
+        )
+
+        test ("positive tolerance uses Euclidean distance at box corners", fun _ ->
+            let tree = BVH.createFromBoxes [| BBox.createUnchecked(0., 0., 0., 1., 1., 1.) |]
+            assertThat (tree.ItemsNearPoint(Pnt(-0.6, -0.6, -0.6), 1.).Count) (tag "diagonal point outside radius" >> isEqualTo 0)
+            assertThat (tree.ItemsNearPoint(Pnt(-0.5, -0.5, -0.5), 1.).Count) (tag "diagonal point inside radius" >> isEqualTo 1)
+            assertThat (tree.ItemsInBox(BBox.createUnchecked(-1., -1., -1., -0.6, -0.6, -0.6), 1.).Count) (tag "diagonal box outside radius" >> isEqualTo 0)
+            assertThat (tree.ItemsInBox(BBox.createUnchecked(-1., -1., -1., -0.5, -0.5, -0.5), 1.).Count) (tag "diagonal box inside radius" >> isEqualTo 1)
+        )
+
         test ("createFromBoxes fails on empty input", fun _ ->
             assertThat (fun () -> BVH.createFromBoxes [||] |> ignore) (tag "empty input should throw" >> throws)
         )

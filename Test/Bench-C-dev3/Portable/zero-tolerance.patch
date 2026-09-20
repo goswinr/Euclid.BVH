@@ -1,0 +1,248 @@
+diff --git a/Src/Bvh.fs b/Src/Bvh.fs
+--- a/Src/Bvh.fs
++++ b/Src/Bvh.fs
+@@ -664,48 +664,78 @@
+     /// <param name="box">The axis aligned bounding box to search in.</param>
+     /// <param name="tolerance">The tolerance distance around the box. Must not be negative. Optional, 0.0 by default.</param>
+     /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
+-    member _.ItemsInBox (box: BBox, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+-        if tolerance < 0.0 then fail $"BVH.ItemsInBox: tolerance {tolerance} must not be negative."
+-        let sqTol = tolerance * tolerance
+-        let result = ResizeArray<int>()
+-        let rec search nodeIdx =
+-            let node = nodes.[nodeIdx]
+-            if BvhUtil.sqBoxDist box node.Box <= sqTol then
+-                if node.Count > 0 then
+-                    for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+-                        let ii = itemIndices.[i]
+-                        if BvhUtil.sqBoxDist box boxes.[ii] <= sqTol then
+-                            result.Add ii
+-                else
+-                    search node.LeftOrStart
+-                    search node.RightChild
+-        search root
+-        result
+-
+-    /// <summary>Finds the indices of all items whose bounding box is closer to the given
+-    /// 3D point than the given tolerance.
+-    /// The distance between a point and a box is 0.0 if the point is inside or on the box.</summary>
+-    /// <param name="pt">The 3D point to search around.</param>
+-    /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
+-    /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
+-    member _.ItemsNearPoint (pt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+-        if tolerance < 0.0 then fail $"BVH.ItemsNearPoint: tolerance {tolerance} must not be negative."
+-        let sqTol = tolerance * tolerance
+-        let result = ResizeArray<int>()
+-        let rec search nodeIdx =
+-            let node = nodes.[nodeIdx]
+-            if BvhUtil.sqBoxPntDist pt node.Box <= sqTol then
+-                if node.Count > 0 then
+-                    for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+-                        let ii = itemIndices.[i]
+-                        if BvhUtil.sqBoxPntDist pt boxes.[ii] <= sqTol then
+-                            result.Add ii
+-                else
+-                    search node.LeftOrStart
+-                    search node.RightChild
+-        search root
+-        result
+-
++    member _.ItemsInBox (box: BBox, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
++        if tolerance < 0.0 then fail $"BVH.ItemsInBox: tolerance {tolerance} must not be negative."
++        let result = ResizeArray<int>()
++        if tolerance = 0.0 then
++            // Containment/overlap needs only comparisons; inclusive bounds retain touching hits.
++            let rec search nodeIdx =
++                let node = nodes.[nodeIdx]
++                if node.Box.IsOverlapping box then
++                    if node.Count > 0 then
++                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
++                            let ii = itemIndices.[i]
++                            if boxes.[ii].IsOverlapping box then
++                                result.Add ii
++                    else
++                        search node.LeftOrStart
++                        search node.RightChild
++            search root
++        else
++            let sqTol = tolerance * tolerance
++            let rec search nodeIdx =
++                let node = nodes.[nodeIdx]
++                if BvhUtil.sqBoxDist box node.Box <= sqTol then
++                    if node.Count > 0 then
++                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
++                            let ii = itemIndices.[i]
++                            if BvhUtil.sqBoxDist box boxes.[ii] <= sqTol then
++                                result.Add ii
++                    else
++                        search node.LeftOrStart
++                        search node.RightChild
++            search root
++        result
++
++    /// <summary>Finds the indices of all items whose bounding box is closer to the given
++    /// 3D point than the given tolerance.
++    /// The distance between a point and a box is 0.0 if the point is inside or on the box.</summary>
++    /// <param name="pt">The 3D point to search around.</param>
++    /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
++    /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
++    member _.ItemsNearPoint (pt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
++        if tolerance < 0.0 then fail $"BVH.ItemsNearPoint: tolerance {tolerance} must not be negative."
++        let result = ResizeArray<int>()
++        if tolerance = 0.0 then
++            // Containment/overlap needs only comparisons; inclusive bounds retain touching hits.
++            let rec search nodeIdx =
++                let node = nodes.[nodeIdx]
++                if node.Box.ContainsPnt pt then
++                    if node.Count > 0 then
++                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
++                            let ii = itemIndices.[i]
++                            if boxes.[ii].ContainsPnt pt then
++                                result.Add ii
++                    else
++                        search node.LeftOrStart
++                        search node.RightChild
++            search root
++        else
++            let sqTol = tolerance * tolerance
++            let rec search nodeIdx =
++                let node = nodes.[nodeIdx]
++                if BvhUtil.sqBoxPntDist pt node.Box <= sqTol then
++                    if node.Count > 0 then
++                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
++                            let ii = itemIndices.[i]
++                            if BvhUtil.sqBoxPntDist pt boxes.[ii] <= sqTol then
++                                result.Add ii
++                    else
++                        search node.LeftOrStart
++                        search node.RightChild
++            search root
++        result
++
+     /// <summary>Lazily enumerates all items in the tree ordered by the distance of their bounding box
+     /// to the given query box, from the closest to the farthest.
+     /// The tree is walked best first: a min heap holds the subtrees and items seen so far, keyed by
+diff --git a/Src/Bvh2D.fs b/Src/Bvh2D.fs
+--- a/Src/Bvh2D.fs
++++ b/Src/Bvh2D.fs
+@@ -469,48 +469,78 @@
+     /// <param name="rect">The axis aligned bounding rectangle to search in.</param>
+     /// <param name="tolerance">The tolerance distance around the rectangle. Must not be negative. Optional, 0.0 by default.</param>
+     /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
+-    member _.ItemsInRect (rect: BRect, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+-        if tolerance < 0.0 then fail $"BVH2D.ItemsInRect: tolerance {tolerance} must not be negative."
+-        let sqTol = tolerance * tolerance
+-        let result = ResizeArray<int>()
+-        let rec search nodeIdx =
+-            let node = nodes.[nodeIdx]
+-            if BvhUtil2D.sqRectDist rect node.Rect <= sqTol then
+-                if node.Count > 0 then
+-                    for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+-                        let ii = itemIndices.[i]
+-                        if BvhUtil2D.sqRectDist rect rects.[ii] <= sqTol then
+-                            result.Add ii
+-                else
+-                    search node.LeftOrStart
+-                    search node.RightChild
+-        search root
+-        result
+-
+-    /// <summary>Finds the indices of all items whose bounding rectangle is closer to the given
+-    /// 2D point than the given tolerance.
+-    /// The distance between a point and a rectangle is 0.0 if the point is inside or on the rectangle.</summary>
+-    /// <param name="pt">The 2D point to search around.</param>
+-    /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
+-    /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
+-    member _.ItemsNearPoint (pt: Pt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+-        if tolerance < 0.0 then fail $"BVH2D.ItemsNearPoint: tolerance {tolerance} must not be negative."
+-        let sqTol = tolerance * tolerance
+-        let result = ResizeArray<int>()
+-        let rec search nodeIdx =
+-            let node = nodes.[nodeIdx]
+-            if BvhUtil2D.sqRectPtDist pt node.Rect <= sqTol then
+-                if node.Count > 0 then
+-                    for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
+-                        let ii = itemIndices.[i]
+-                        if BvhUtil2D.sqRectPtDist pt rects.[ii] <= sqTol then
+-                            result.Add ii
+-                else
+-                    search node.LeftOrStart
+-                    search node.RightChild
+-        search root
+-        result
+-
++    member _.ItemsInRect (rect: BRect, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
++        if tolerance < 0.0 then fail $"BVH2D.ItemsInRect: tolerance {tolerance} must not be negative."
++        let result = ResizeArray<int>()
++        if tolerance = 0.0 then
++            // Containment/overlap needs only comparisons; inclusive bounds retain touching hits.
++            let rec search nodeIdx =
++                let node = nodes.[nodeIdx]
++                if node.Rect.IsOverlapping rect then
++                    if node.Count > 0 then
++                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
++                            let ii = itemIndices.[i]
++                            if rects.[ii].IsOverlapping rect then
++                                result.Add ii
++                    else
++                        search node.LeftOrStart
++                        search node.RightChild
++            search root
++        else
++            let sqTol = tolerance * tolerance
++            let rec search nodeIdx =
++                let node = nodes.[nodeIdx]
++                if BvhUtil2D.sqRectDist rect node.Rect <= sqTol then
++                    if node.Count > 0 then
++                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
++                            let ii = itemIndices.[i]
++                            if BvhUtil2D.sqRectDist rect rects.[ii] <= sqTol then
++                                result.Add ii
++                    else
++                        search node.LeftOrStart
++                        search node.RightChild
++            search root
++        result
++
++    /// <summary>Finds the indices of all items whose bounding rectangle is closer to the given
++    /// 2D point than the given tolerance.
++    /// The distance between a point and a rectangle is 0.0 if the point is inside or on the rectangle.</summary>
++    /// <param name="pt">The 2D point to search around.</param>
++    /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
++    /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
++    member _.ItemsNearPoint (pt: Pt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
++        if tolerance < 0.0 then fail $"BVH2D.ItemsNearPoint: tolerance {tolerance} must not be negative."
++        let result = ResizeArray<int>()
++        if tolerance = 0.0 then
++            // Containment/overlap needs only comparisons; inclusive bounds retain touching hits.
++            let rec search nodeIdx =
++                let node = nodes.[nodeIdx]
++                if node.Rect.ContainsPt pt then
++                    if node.Count > 0 then
++                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
++                            let ii = itemIndices.[i]
++                            if rects.[ii].ContainsPt pt then
++                                result.Add ii
++                    else
++                        search node.LeftOrStart
++                        search node.RightChild
++            search root
++        else
++            let sqTol = tolerance * tolerance
++            let rec search nodeIdx =
++                let node = nodes.[nodeIdx]
++                if BvhUtil2D.sqRectPtDist pt node.Rect <= sqTol then
++                    if node.Count > 0 then
++                        for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
++                            let ii = itemIndices.[i]
++                            if BvhUtil2D.sqRectPtDist pt rects.[ii] <= sqTol then
++                                result.Add ii
++                    else
++                        search node.LeftOrStart
++                        search node.RightChild
++            search root
++        result
++
+     /// <summary>Lazily enumerates all items in the tree ordered by the distance of their bounding rectangle
+     /// to the given query rectangle, from the closest to the farthest.
+     /// The tree is walked best first: a min heap holds the subtrees and items seen so far, keyed by

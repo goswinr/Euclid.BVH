@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The 2D and 3D tree builders accumulate bounding coordinates directly, avoiding temporary rectangle and box objects inside the bounds loops when compiled with Fable; the split strategy and public API are unchanged.
+
 ## [0.2.0] - 2026-09-20
 ### Added
 - Lazy nearest-first enumeration: `BVH.BoxesByDistance` and `BVH2D.RectsByDistance` return an F# `seq` of all items ordered from the closest bounding box or rectangle outwards to the farthest, for a query box/rectangle or a query point.

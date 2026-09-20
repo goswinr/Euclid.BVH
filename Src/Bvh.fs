@@ -177,10 +177,18 @@ module internal BvhUtil =
         let nodes = Array.zeroCreateUndef<BVHNode> (nodeCount n leafSize)
 
         let boxOf start count =
-            let mutable b = boxes.[idx.[start]]
+            let first = boxes.[idx.[start]]
+            let mutable minX, minY, minZ = first.MinX, first.MinY, first.MinZ
+            let mutable maxX, maxY, maxZ = first.MaxX, first.MaxY, first.MaxZ
             for i = start + 1 to start + count - 1 do
-                b <- b.Union boxes.[idx.[i]]
-            b
+                let b = boxes.[idx.[i]]
+                minX <- min b.MinX minX
+                minY <- min b.MinY minY
+                minZ <- min b.MinZ minZ
+                maxX <- max b.MaxX maxX
+                maxY <- max b.MaxY maxY
+                maxZ <- max b.MaxZ maxZ
+            BBox.createUnchecked(minX, minY, minZ, maxX, maxY, maxZ)
 
         // recursively builds the node for idx.[start .. start+count-1] into nodes.[nodeIdx] and its
         // subtree into the slots right after it. Returns the first free slot after the subtree.
@@ -192,7 +200,10 @@ module internal BvhUtil =
             else
                 // Collect the node bounds and center ranges in the same pass. Long items can
                 // share a center along their longest axis, so box size is not a useful split guide.
-                let mutable box = boxes.[idx.[start]]
+                let box = boxes.[idx.[start]]
+                // Accumulate coordinates so Fable allocates only the final box for this node.
+                let mutable boundMinX, boundMinY, boundMinZ = box.MinX, box.MinY, box.MinZ
+                let mutable boundMaxX, boundMaxY, boundMaxZ = box.MaxX, box.MaxY, box.MaxZ
                 let mutable minX = (box.MinX + box.MaxX) * 0.5
                 let mutable minY = (box.MinY + box.MaxY) * 0.5
                 let mutable minZ = (box.MinZ + box.MaxZ) * 0.5
@@ -202,7 +213,12 @@ module internal BvhUtil =
                 let last = start + count - 1
                 for i = start + 1 to last do
                     let b = boxes.[idx.[i]]
-                    box <- box.Union b
+                    boundMinX <- min b.MinX boundMinX
+                    boundMinY <- min b.MinY boundMinY
+                    boundMinZ <- min b.MinZ boundMinZ
+                    boundMaxX <- max b.MaxX boundMaxX
+                    boundMaxY <- max b.MaxY boundMaxY
+                    boundMaxZ <- max b.MaxZ boundMaxZ
                     let cx = (b.MinX + b.MaxX) * 0.5
                     let cy = (b.MinY + b.MaxY) * 0.5
                     let cz = (b.MinZ + b.MaxZ) * 0.5
@@ -235,7 +251,8 @@ module internal BvhUtil =
                 let left = nodeIdx + 1
                 let right = buildNode left start mid
                 let free = buildNode right (start + mid) (count - mid)
-                nodes.[nodeIdx] <- { Box = box; LeftOrStart = left; RightChild = right; Count = 0 }
+                let bounds = BBox.createUnchecked(boundMinX, boundMinY, boundMinZ, boundMaxX, boundMaxY, boundMaxZ)
+                nodes.[nodeIdx] <- { Box = bounds; LeftOrStart = left; RightChild = right; Count = 0 }
                 free
 
         buildNode 0 0 n |> ignore

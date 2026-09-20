@@ -62,10 +62,16 @@ module internal BvhUtil2D =
         let nodes = Array.zeroCreateUndef<BVHNode2D> (BvhUtil.nodeCount n leafSize)
 
         let rectOf start count =
-            let mutable r = rects.[idx.[start]]
+            let first = rects.[idx.[start]]
+            let mutable minX, minY = first.MinX, first.MinY
+            let mutable maxX, maxY = first.MaxX, first.MaxY
             for i = start + 1 to start + count - 1 do
-                r <- r.Union rects.[idx.[i]]
-            r
+                let r = rects.[idx.[i]]
+                minX <- min r.MinX minX
+                minY <- min r.MinY minY
+                maxX <- max r.MaxX maxX
+                maxY <- max r.MaxY maxY
+            BRect.createUnchecked(minX, minY, maxX, maxY)
 
         // recursively builds the node for idx.[start .. start+count-1] into nodes.[nodeIdx] and its
         // subtree into the slots right after it. Returns the first free slot after the subtree.
@@ -77,7 +83,10 @@ module internal BvhUtil2D =
             else
                 // Collect node bounds and center ranges together. Item length must not force
                 // a split along an axis where the centers have little or no separation.
-                let mutable rect = rects.[idx.[start]]
+                let rect = rects.[idx.[start]]
+                // Scalar bounds avoid constructing temporary rectangles in Fable's JavaScript.
+                let mutable boundMinX, boundMinY = rect.MinX, rect.MinY
+                let mutable boundMaxX, boundMaxY = rect.MaxX, rect.MaxY
                 let mutable minX = (rect.MinX + rect.MaxX) * 0.5
                 let mutable minY = (rect.MinY + rect.MaxY) * 0.5
                 let mutable maxX = minX
@@ -85,7 +94,10 @@ module internal BvhUtil2D =
                 let last = start + count - 1
                 for i = start + 1 to last do
                     let r = rects.[idx.[i]]
-                    rect <- rect.Union r
+                    boundMinX <- min r.MinX boundMinX
+                    boundMinY <- min r.MinY boundMinY
+                    boundMaxX <- max r.MaxX boundMaxX
+                    boundMaxY <- max r.MaxY boundMaxY
                     let cx = (r.MinX + r.MaxX) * 0.5
                     let cy = (r.MinY + r.MaxY) * 0.5
                     if cx < minX then minX <- cx
@@ -109,7 +121,8 @@ module internal BvhUtil2D =
                 let left = nodeIdx + 1
                 let right = buildNode left start mid
                 let free = buildNode right (start + mid) (count - mid)
-                nodes.[nodeIdx] <- { Rect = rect; LeftOrStart = left; RightChild = right; Count = 0 }
+                let bounds = BRect.createUnchecked(boundMinX, boundMinY, boundMaxX, boundMaxY)
+                nodes.[nodeIdx] <- { Rect = bounds; LeftOrStart = left; RightChild = right; Count = 0 }
                 free
 
         buildNode 0 0 n |> ignore

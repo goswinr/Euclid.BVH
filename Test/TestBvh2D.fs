@@ -83,6 +83,37 @@ let private randomDisks (rand: Random) (count: int) : Disk[] =
 
 let tests =
     testList ("BVH2D", [
+        test ("zero tolerance includes touching and degenerate bounds at every leaf size", fun _ ->
+            let rects = [|
+                BRect.createXY(0., 0., 0., 0.)
+                BRect.createXY(-1., -1., 1., 1.)
+                BRect.createXY(2., -1., 2., 1.)
+                BRect.createXY(-2., 2., 2., 2.)
+                BRect.createXY(5., 5., 6., 6.)
+            |]
+            let points = [| Pt(0., 0.); Pt(-1., -1.); Pt(1., 1.); Pt(2., 0.); Pt(0., 2.); Pt(3., 3.); Pt(6., 6.) |]
+            for leafSize in [| 1; 2; 4; 16 |] do
+                let tree = BVH2D.createFromRects(rects, leafSize)
+                for pt in points do
+                    let expected = rects |> Array.indexed |> Array.choose (fun (i, r) -> if r.ContainsPt pt then Some i else None)
+                    for tolerance in [| 0.0; -0.0 |] do
+                        assertThat (tree.ItemsNearPoint(pt, tolerance).ToArray() |> Array.sort) (tag "point boundaries" >> isEqualTo expected)
+                    let query = BRect.createXY(pt.X, pt.Y, pt.X + 1., pt.Y + 1.)
+                    let expected = rects |> Array.indexed |> Array.choose (fun (i, r) -> if r.IsOverlapping query then Some i else None)
+                    assertThat (tree.ItemsInRect(query).ToArray() |> Array.sort) (tag "touching rectangles" >> isEqualTo expected)
+            let single = BVH2D.createFromRects [| rects.[0] |]
+            assertThat (single.ItemsNearPoint(Pt(0., 0.)).Count) (tag "single point hit" >> isEqualTo 1)
+            assertThat (single.ItemsNearPoint(Pt(1., 0.)).Count) (tag "single point miss" >> isEqualTo 0)
+        )
+
+        test ("positive tolerance uses Euclidean distance at rectangle corners", fun _ ->
+            let tree = BVH2D.createFromRects [| BRect.createXY(0., 0., 1., 1.) |]
+            assertThat (tree.ItemsNearPoint(Pt(-0.75, -0.75), 1.).Count) (tag "diagonal point outside radius" >> isEqualTo 0)
+            assertThat (tree.ItemsNearPoint(Pt(-0.5, -0.5), 1.).Count) (tag "diagonal point inside radius" >> isEqualTo 1)
+            assertThat (tree.ItemsInRect(BRect.createXY(-1., -1., -0.75, -0.75), 1.).Count) (tag "diagonal rectangle outside radius" >> isEqualTo 0)
+            assertThat (tree.ItemsInRect(BRect.createXY(-1., -1., -0.5, -0.5), 1.).Count) (tag "diagonal rectangle inside radius" >> isEqualTo 1)
+        )
+
         test ("build evaluates every bounding rectangle once", fun _ ->
             let mutable calls = 0
             let rects = [| BRect.createXY (0., 0., 1., 1.); BRect.createXY (2., 0., 3., 1.) |]
