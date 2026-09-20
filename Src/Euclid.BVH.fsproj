@@ -59,10 +59,10 @@
     <Content Include="Euclid.BVH.fsproj" PackagePath="fable/Src/" />
     <Content Include="**/*.fs; **/*.fsi" Exclude="bin/**;obj/**" PackagePath="fable/Src/" />
 
-    <Compile Include="Bvh.fs" />
-    <Compile Include="Bvh2D.fs" />
-    <Compile Include="LineBvh.fs" />
-    <Compile Include="LineBvh2D.fs" />
+    <Compile Include="BVH.fs" />
+    <Compile Include="BVH2D.fs" />
+    <Compile Include="BVHLine3D.fs" />
+    <Compile Include="BVHLine2D.fs" />
   </ItemGroup>
 
   <Target Name="CopyReadmeToDocs" AfterTargets="Build">    <!-- for fsdocs to build locally -->
