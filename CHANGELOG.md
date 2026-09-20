@@ -6,18 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-09-20
 ### Added
-- Lazy nearest-first enumeration: `Bvh.BoxesByDistance` and `Bvh2D.RectsByDistance` return an F# `seq` of all items ordered from the closest bounding box or rectangle outwards to the farthest, for a query box/rectangle or a query point.
-- `Bvh.ItemsByDistance` and `Bvh2D.ItemsByDistance` do the same ordered by an exact squared distance callback instead of by the bounding volume, for a query box/rectangle or a query point.
-- `LineBvh.LinesByDistance` and `LineBvh2D.LinesByDistance` enumerate all lines ordered by their exact segment distance to a query line or point, with optional self exclusion via `skipIdx`.
+- Lazy nearest-first enumeration: `BVH.BoxesByDistance` and `BVH2D.RectsByDistance` return an F# `seq` of all items ordered from the closest bounding box or rectangle outwards to the farthest, for a query box/rectangle or a query point.
+- `BVH.ItemsByDistance` and `BVH2D.ItemsByDistance` do the same ordered by an exact squared distance callback instead of by the bounding volume, for a query box/rectangle or a query point.
+- `BVHLine3D.LinesByDistance` and `BVHLine2D.LinesByDistance` enumerate all lines ordered by their exact segment distance to a query line or point, with optional self exclusion via `skipIdx`.
 - These queries walk the tree best first with a min heap, so taking only the first few entries visits only the part of the tree that is closer than the last entry taken, and costs about as much as the corresponding `Closest*` query.
 
 ### Changed
+- Breaking: renamed the public BVH types for consistent capitalization and dimensions: `Bvh` to `BVH`, `Bvh2d` to `BVH2D`, `BvhPair` to `BVHPair`, `LineBvh` to `BVHLine3D`, `LineBvh2d` to `BVHLine2D`, and `LinePair2d` to `LinePair2D`.
 - The 2D and 3D tree builders now split along the axis with the greatest spread of item centers, improving pruning for long parallel items whose centers coincide along their longest axis.
 - Tests now run on [Scriptorium](https://fable-hub.github.io/Scriptorium/guides/getting-started/) (`Scriptorium.Quill` and `Scriptorium.Nib`) on every target, replacing Expecto on .NET and Fable.Mocha plus the `mocha` npm package on JavaScript.
 - The JavaScript tests are run by `dotnet fable --runScript` instead of `mocha`, so `Test/package.json` has no runtime test dependency left.
 - Breaking: `ClosestItem`, `ClosestBox`, `ClosestRect` and `ClosestLine` now return a plain tuple `(int * float)` instead of a struct tuple, matching the rest of the public API.
-- Breaking: renamed `Bvh2d`, `LineBvh2d` and `LinePair2d` to `Bvh2D`, `LineBvh2D` and `LinePair2D`.
 
 ### Fixed
 - Tree building now limits quickselect's partition work and falls back to an in-place heap sort of the remaining range, avoiding quadratic selection on structured input orders in both 2D and 3D.
@@ -47,4 +49,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fable support: the library and all tests compile and pass with Fable (JavaScript and TypeScript), tested with Mocha in CI like the Euclid library.
 - An interactive SVG nearest-neighbour visualisation for 20–20,000 random lines, stepping through queries, selecting 1–10 neighbours, showing the bounding rectangles tested by the search and comparing per-query BVH performance with brute-force closest-line search.
 
+[Unreleased]: https://github.com/goswinr/Euclid.BVH/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/goswinr/Euclid.BVH/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/goswinr/Euclid.BVH/releases/tag/0.1.0

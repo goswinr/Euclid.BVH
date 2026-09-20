@@ -76,17 +76,17 @@ let private randomBalls (rand: Random) (count: int) : Ball[] =
           Radius = rand.NextDouble() * 1.5 })
 
 let tests =
-    testList ("Bvh", [
+    testList ("BVH", [
 
         test ("createFromBoxes fails on empty input", fun _ ->
-            assertThat (fun () -> Bvh.createFromBoxes [||] |> ignore) (tag "empty input should throw" >> throws)
+            assertThat (fun () -> BVH.createFromBoxes [||] |> ignore) (tag "empty input should throw" >> throws)
         )
 
         test ("create accepts ResizeArray and seq inputs", fun _ ->
             let rand = Random 1001
             let balls = randomBalls rand 10
-            let fromResizeArray = Bvh.create (ResizeArray balls, ballBox)
-            let fromSeq = Bvh.create (balls |> Seq.map id, ballBox)
+            let fromResizeArray = BVH.create (ResizeArray balls, ballBox)
+            let fromSeq = BVH.create (balls |> Seq.map id, ballBox)
             assertThat fromResizeArray.Count (tag "ResizeArray count" >> isEqualTo balls.Length)
             assertThat fromSeq.Count (tag "sequence count" >> isEqualTo balls.Length)
             for i = 0 to balls.Length - 1 do
@@ -96,7 +96,7 @@ let tests =
 
         test ("single box tree", fun _ ->
             let boxes = [| BBox.createFromSeq [ Pnt (0., 0., 0.); Pnt (1., 1., 1.) ] |]
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             assertThat bvh.Count (tag "count" >> isEqualTo 1)
             let queryBox = BBox.createFromSeq [ Pnt (0., 3., 0.); Pnt (1., 4., 1.) ]
             let (i, d) = bvh.ClosestBox queryBox
@@ -107,7 +107,7 @@ let tests =
         test ("closest box matches brute force", fun _ ->
             let rand = Random 1002
             let boxes = randomBoxes rand 500
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let queryBox = BBox.createFromSeq [ Pnt (10., 10., 5.); Pnt (15., 12., 6.) ]
             let (_, d) = bvh.ClosestBox queryBox
             let mutable bestD = Double.MaxValue
@@ -119,7 +119,7 @@ let tests =
         test ("nearest neighbor box of each box matches brute force", fun _ ->
             let rand = Random 1003
             let boxes = randomBoxes rand 300
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             for i = 0 to boxes.Length - 1 do
                 let (_, d) = bvh.ClosestBox (boxes.[i], i)
                 let _, bd = bruteNearest boxes i
@@ -129,7 +129,7 @@ let tests =
         test ("box based closest pair matches brute force", fun _ ->
             let rand = Random 1004
             let boxes = randomBoxes rand 400
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let pair = bvh.ClosestPair ()
             let mutable bd = Double.MaxValue
             for i = 0 to boxes.Length - 1 do
@@ -142,7 +142,7 @@ let tests =
         test ("box based nearest neighbors match brute force", fun _ ->
             let rand = Random 1005
             let boxes = randomBoxes rand 200
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let nns = bvh.NearestNeighbors ()
             assertThat nns.Length (tag "one entry per box" >> isEqualTo boxes.Length)
             for i = 0 to boxes.Length - 1 do
@@ -154,7 +154,7 @@ let tests =
         test ("box based close pairs match brute force", fun _ ->
             let rand = Random 1006
             let boxes = randomBoxes rand 300
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let maxDist = 2.5
             let pairs =
                 bvh.ClosePairs maxDist
@@ -167,7 +167,7 @@ let tests =
         test ("overlapping boxes found with zero tolerance", fun _ ->
             let rand = Random 1007
             let boxes = randomBoxes rand 300
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let pairs =
                 bvh.ClosePairs 0.0
                 |> Seq.map (fun p -> p.IdxA, p.IdxB)
@@ -178,7 +178,7 @@ let tests =
 
         test ("box and point queries reject negative tolerances", fun _ ->
             let box = BBox.createFromCenter (Pnt (0., 0., 0.), 2., 2., 2.)
-            let bvh = Bvh.createFromBoxes [| box |]
+            let bvh = BVH.createFromBoxes [| box |]
             for tolerance in [ -1.0; -1e-200 ] do
                 assertThat (fun () -> bvh.ItemsInBox (box, tolerance) |> ignore) (tag $"negative box tolerance {tolerance}" >> throws)
                 assertThat (fun () -> bvh.ItemsNearPoint (Pnt (0., 0., 0.), tolerance) |> ignore) (tag $"negative point tolerance {tolerance}" >> throws)
@@ -187,7 +187,7 @@ let tests =
         test ("items in box matches brute force", fun _ ->
             let rand = Random 1008
             let boxes = randomBoxes rand 300
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let box = BBox.createFromSeq [ Pnt (20., 20., 0.); Pnt (60., 60., 20.) ]
             let found = bvh.ItemsInBox box |> Set.ofSeq
             let brute =
@@ -200,7 +200,7 @@ let tests =
         test ("generic create with custom items and exact distance", fun _ ->
             let rand = Random 1009
             let balls = randomBalls rand 300
-            let bvh = Bvh.create (balls, ballBox)
+            let bvh = BVH.create (balls, ballBox)
             // exact closest pair via callback, compared to brute force:
             let pair = bvh.ClosestPair (fun a b -> ballSqDist a b)
             let mutable bd = Double.MaxValue
@@ -213,7 +213,7 @@ let tests =
         test ("generic close pairs with exact distance match brute force", fun _ ->
             let rand = Random 1010
             let balls = randomBalls rand 300
-            let bvh = Bvh.create (balls, ballBox)
+            let bvh = BVH.create (balls, ballBox)
             let maxDist = 2.0
             let pairs =
                 bvh.ClosePairs (maxDist, fun a b -> ballSqDist a b)
@@ -230,7 +230,7 @@ let tests =
         test ("closest item with exact distance matches brute force", fun _ ->
             let rand = Random 1011
             let balls = randomBalls rand 300
-            let bvh = Bvh.create (balls, ballBox)
+            let bvh = BVH.create (balls, ballBox)
             let query = { Center = Pnt (50., 50., 10.); Radius = 1.0 }
             let (_, d) = bvh.ClosestItem (ballBox query, ballSqDist query)
             let mutable bd = Double.MaxValue
@@ -246,7 +246,7 @@ let tests =
             let results =
                 [ 1; 2; 8; 32 ]
                 |> List.map (fun ls ->
-                    let bvh = Bvh.createFromBoxes (boxes, ls)
+                    let bvh = BVH.createFromBoxes (boxes, ls)
                     let (_, d) = bvh.ClosestBox queryBox
                     d)
             for d in results do
@@ -256,7 +256,7 @@ let tests =
         test ("tree box contains all item boxes", fun _ ->
             let rand = Random 1013
             let boxes = randomBoxes rand 100
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             for b in boxes do
                 assertThat (bvh.Box.Contains b) (tag "tree box should contain every item box" >> isTrue)
         )
@@ -264,7 +264,7 @@ let tests =
         test ("closest box to point matches brute force", fun _ ->
             let rand = Random 1014
             let boxes = randomBoxes rand 400
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let pt = Pnt (42., 61., 7.)
             let (_, d) = bvh.ClosestBox pt
             let queryBox = BBox.createFromSeq [ pt ]
@@ -277,7 +277,7 @@ let tests =
         test ("closest item to point with exact distance matches brute force", fun _ ->
             let rand = Random 1015
             let balls = randomBalls rand 300
-            let bvh = Bvh.create (balls, ballBox)
+            let bvh = BVH.create (balls, ballBox)
             let pt = Pnt (50., 50., 10.)
             let sqDistTo (b: Ball) =
                 let d = max 0.0 (b.Center.DistanceTo pt - b.Radius)
@@ -292,7 +292,7 @@ let tests =
         test ("items near point match brute force", fun _ ->
             let rand = Random 1016
             let boxes = randomBoxes rand 300
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let pt = Pnt (50., 50., 10.)
             let tol = 8.0
             let found = bvh.ItemsNearPoint (pt, tol) |> Set.ofSeq
@@ -307,7 +307,7 @@ let tests =
         test ("items near point with zero tolerance finds containing boxes", fun _ ->
             let rand = Random 1017
             let boxes = randomBoxes rand 300
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             // use the center of the first box, it is guaranteed to be inside it:
             let pt = boxes.[0].Center
             let found = bvh.ItemsNearPoint pt |> Set.ofSeq
@@ -323,7 +323,7 @@ let tests =
         test ("boxes by distance enumerates every box in increasing distance order", fun _ ->
             let rand = Random 1018
             let boxes = randomBoxes rand 300
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let queryBox = BBox.createFromSeq [ Pnt (30., 70., 4.); Pnt (33., 72., 5.) ]
             let found = bvh.BoxesByDistance queryBox |> Seq.toArray
             assertThat found.Length (tag "every box should be enumerated" >> isEqualTo boxes.Length)
@@ -338,7 +338,7 @@ let tests =
         test ("boxes by distance starts at the closest box and is re-enumerable", fun _ ->
             let rand = Random 1019
             let boxes = randomBoxes rand 400
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let queryBox = BBox.createFromSeq [ Pnt (10., 10., 5.); Pnt (15., 12., 6.) ]
             let (_, closestD) = bvh.ClosestBox queryBox
             let lazySeq = bvh.BoxesByDistance queryBox
@@ -354,7 +354,7 @@ let tests =
         test ("boxes by distance skips the given index", fun _ ->
             let rand = Random 1020
             let boxes = randomBoxes rand 200
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let skip = 17
             let found = bvh.BoxesByDistance (boxes.[skip], skip) |> Seq.toArray
             assertThat found.Length (tag "all but the skipped box" >> isEqualTo (boxes.Length - 1))
@@ -366,7 +366,7 @@ let tests =
         test ("items by distance with exact distance matches brute force order", fun _ ->
             let rand = Random 1021
             let balls = randomBalls rand 300
-            let bvh = Bvh.create (balls, ballBox)
+            let bvh = BVH.create (balls, ballBox)
             let query = { Center = Pnt (50., 50., 10.); Radius = 1.0 }
             let found = bvh.ItemsByDistance (ballBox query, ballSqDist query) |> Seq.toArray
             assertThat found.Length (tag "every ball should be enumerated" >> isEqualTo balls.Length)
@@ -379,7 +379,7 @@ let tests =
         test ("boxes by distance to point matches brute force order", fun _ ->
             let rand = Random 1022
             let boxes = randomBoxes rand 300
-            let bvh = Bvh.createFromBoxes boxes
+            let bvh = BVH.createFromBoxes boxes
             let pt = Pnt (42., 61., 7.)
             let ptBox = BBox.createFromSeq [ pt ]
             let found = bvh.BoxesByDistance pt |> Seq.toArray
@@ -392,7 +392,7 @@ let tests =
         test ("items by distance to point with exact distance matches brute force order", fun _ ->
             let rand = Random 1023
             let balls = randomBalls rand 300
-            let bvh = Bvh.create (balls, ballBox)
+            let bvh = BVH.create (balls, ballBox)
             let pt = Pnt (50., 50., 10.)
             let sqDistTo (b: Ball) =
                 let d = max 0.0 (b.Center.DistanceTo pt - b.Radius)
@@ -409,7 +409,7 @@ let tests =
             let boxes = randomBoxes rand 250
             let queryBox = BBox.createFromSeq [ Pnt (50., 50., 10.); Pnt (55., 52., 11.) ]
             let distancesWithLeafSize leafSize =
-                let bvh = Bvh.createFromBoxes (boxes, leafSize)
+                let bvh = BVH.createFromBoxes (boxes, leafSize)
                 bvh.BoxesByDistance queryBox |> Seq.map snd |> Seq.toArray
             let reference = distancesWithLeafSize 1
             for leafSize in [ 2; 8; 32 ] do

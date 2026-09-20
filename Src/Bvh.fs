@@ -24,27 +24,27 @@ module internal Array =
             Array.zeroCreate<'T> len
         #endif
 
-/// A result of a closest pair search in a Bvh tree.
+/// A result of a closest pair search in a BVH tree.
 /// Holds the indices of the two items (into the input array) and the distance between them.
 [<Struct>]
-type BvhPair = {
-    /// The index of the first item in the input array of the Bvh.
+type BVHPair = {
+    /// The index of the first item in the input array of the BVH.
     IdxA: int
-    /// The index of the second item in the input array of the Bvh.
+    /// The index of the second item in the input array of the BVH.
     IdxB: int
     /// The distance between the two items.
     Distance: float
     }
 
-/// An internal node of a Bvh tree, stored in a flattened array.
+/// An internal node of a BVH tree, stored in a flattened array.
 /// If Count is greater than 0 the node is a leaf that owns Count item indices starting at LeftOrStart
-/// in the Bvh.ItemIndices array.
+/// in the BVH.ItemIndices array.
 /// Otherwise LeftOrStart and RightChild are the array indices of the two child nodes.
 [<Struct; NoEquality; NoComparison>]
-type internal BvhNode = {
+type internal BVHNode = {
     /// The axis aligned bounding box of everything below this node.
     Box: BBox
-    /// For a leaf node the start index into Bvh.ItemIndices, otherwise the index of the left child node.
+    /// For a leaf node the start index into BVH.ItemIndices, otherwise the index of the left child node.
     LeftOrStart: int
     /// The index of the right child node. Unused (-1) for leaf nodes.
     RightChild: int
@@ -54,7 +54,7 @@ type internal BvhNode = {
 
 
 
-/// An internal module with functions shared by all Bvh instantiations.
+/// An internal module with functions shared by all BVH instantiations.
 module internal BvhUtil =
 
     /// Returns the squared distance between two axis aligned bounding boxes.
@@ -164,7 +164,7 @@ module internal BvhUtil =
 
     /// Builds the flattened node array for the given boxes.
     /// Returns the permutation of item indices, the nodes and the index of the root node.
-    let build (boxes: BBox[]) (leafSize: int) : int[] * BvhNode[] * int =
+    let build (boxes: BBox[]) (leafSize: int) : int[] * BVHNode[] * int =
         let n = boxes.Length
         // the permutation of item indices, reordered in place while building:
         let idx = Array.zeroCreate<int> n
@@ -174,7 +174,7 @@ module internal BvhUtil =
         // It is refilled for the range of each node, so that no per node array is needed:
         let keys = Array.zeroCreate<float> n
         // the count of nodes is known upfront, so the array is allocated at its exact size and filled in place:
-        let nodes = Array.zeroCreateUndef<BvhNode> (nodeCount n leafSize)
+        let nodes = Array.zeroCreateUndef<BVHNode> (nodeCount n leafSize)
 
         let boxOf start count =
             let mutable b = boxes.[idx.[start]]
@@ -330,12 +330,12 @@ module internal BvhHeap =
 /// as the distance between their bounding boxes, and exact, where a distance function for the
 /// actual items is supplied. The bounding box distance is always a valid lower bound of the
 /// exact distance, so it is used for branch and bound pruning in both cases.</summary>
-type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemIndices: int[], nodes: BvhNode[], root: int) =
+type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemIndices: int[], nodes: BVHNode[], root: int) =
 
     /// The default maximum amount of items per leaf node.
     static member val DefaultLeafSize = 4 with get
 
-    /// The input collection this Bvh was built from. Do not modify the collection or its items after construction.
+    /// The input collection this BVH was built from. Do not modify the collection or its items after construction.
     member _.Items = items
 
     /// The bounding box of each input item, in the same order as Items. Do not mutate this array.
@@ -344,57 +344,57 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// The permutation of item indices as referenced by the leaf nodes. Do not mutate this array.
     member internal _.ItemIndices = itemIndices
 
-    /// The count of items in this Bvh.
+    /// The count of items in this BVH.
     member _.Count = items.Count
 
-    /// The axis aligned bounding box around all items in this Bvh.
+    /// The axis aligned bounding box around all items in this BVH.
     member _.Box = nodes.[root].Box
 
-    /// Builds a Bvh from items and their already evaluated bounding boxes.
-    static member internal createWithBoxes (items: Collections.Generic.IList<'T>, boxes: BBox[], leafSize: int) : Bvh<'T> =
+    /// Builds a BVH from items and their already evaluated bounding boxes.
+    static member internal createWithBoxes (items: Collections.Generic.IList<'T>, boxes: BBox[], leafSize: int) : BVH<'T> =
         let idx, nodes, root = BvhUtil.build boxes leafSize
-        Bvh<'T> (items, boxes, idx, nodes, root)
+        BVH<'T> (items, boxes, idx, nodes, root)
 
-    /// <summary>Builds a Bvh from the given items.
+    /// <summary>Builds a BVH from the given items.
     /// The tree is built top-down by splitting at the median of the item-box centers
     /// along the axis where those centers have the greatest spread.</summary>
     /// <param name="items">The items to build the tree from. The array is referenced, not copied. Do not mutate it afterwards.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
-    /// <returns>A new immutable Bvh.</returns>
-    static member create (items: 'T[], getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
-        if isNull items then fail "Bvh.create: items array is null."
-        if items.Length = 0 then fail "Bvh.create: items array is empty."
-        let leafSize = if leafSize < 1 then Bvh<'T>.DefaultLeafSize else leafSize
+    /// <returns>A new immutable BVH.</returns>
+    static member create (items: 'T[], getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : BVH<'T> =
+        if isNull items then fail "BVH.create: items array is null."
+        if items.Length = 0 then fail "BVH.create: items array is empty."
+        let leafSize = if leafSize < 1 then BVH<'T>.DefaultLeafSize else leafSize
         let boxes = Array.map getBox items
-        Bvh<'T>.createWithBoxes (items, boxes, leafSize)
+        BVH<'T>.createWithBoxes (items, boxes, leafSize)
 
 
-    /// <summary>Builds a Bvh from the given resizable array of items.</summary>
+    /// <summary>Builds a BVH from the given resizable array of items.</summary>
     /// <param name="items">The items to build the tree from. The ResizeArray is used directly, not copied. Do not modify it or its items afterwards.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
-    /// <returns>A new immutable Bvh.</returns>
-    static member create (items: ResizeArray<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
-        if isNull items then fail "Bvh.create: items ResizeArray is null."
-        if items.Count = 0 then fail "Bvh.create: items ResizeArray is empty."
-        let leafSize = if leafSize < 1 then Bvh<'T>.DefaultLeafSize else leafSize
+    /// <returns>A new immutable BVH.</returns>
+    static member create (items: ResizeArray<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : BVH<'T> =
+        if isNull items then fail "BVH.create: items ResizeArray is null."
+        if items.Count = 0 then fail "BVH.create: items ResizeArray is empty."
+        let leafSize = if leafSize < 1 then BVH<'T>.DefaultLeafSize else leafSize
         let boxes = Array.zeroCreateUndef<BBox> items.Count
         for i = 0 to items.Count - 1 do
             boxes.[i] <- getBox items.[i]
-        Bvh<'T>.createWithBoxes (items, boxes, leafSize)
+        BVH<'T>.createWithBoxes (items, boxes, leafSize)
 
-    /// <summary>Builds a Bvh from the given sequence of items.</summary>
+    /// <summary>Builds a BVH from the given sequence of items.</summary>
     /// <param name="items">The items to build the tree from. They are enumerated and copied to an array at build time.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
-    /// <returns>A new immutable Bvh.</returns>
-    static member create (items: seq<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
-        if isNull (box items) then fail "Bvh.create: items sequence is null."
-        Bvh<'T>.create (Array.ofSeq items, getBox, leafSize)
+    /// <returns>A new immutable BVH.</returns>
+    static member create (items: seq<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : BVH<'T> =
+        if isNull (box items) then fail "BVH.create: items sequence is null."
+        BVH<'T>.create (Array.ofSeq items, getBox, leafSize)
 
     /// <summary>Finds the item in the tree closest to the given query bounding box.
     /// The distance to an item is measured to the exact geometry via the given squared distance
@@ -433,7 +433,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         search node.RightChild
                         search node.LeftOrStart
         search root
-        if bestIdx = -1 then fail "Bvh.ClosestItem: no item found. Tree has only the skipped item?"
+        if bestIdx = -1 then fail "BVH.ClosestItem: no item found. Tree has only the skipped item?"
         bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree whose bounding box is closest to the given query box.
@@ -466,7 +466,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         search node.RightChild
                         search node.LeftOrStart
         search root
-        if bestIdx = -1 then fail "Bvh.ClosestBox: no item found. Tree has only the skipped item?"
+        if bestIdx = -1 then fail "BVH.ClosestBox: no item found. Tree has only the skipped item?"
         bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree closest to the given query point.
@@ -503,7 +503,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         search node.RightChild
                         search node.LeftOrStart
         search root
-        if bestIdx = -1 then fail "Bvh.ClosestItem: no item found. Tree has only the skipped item?"
+        if bestIdx = -1 then fail "BVH.ClosestItem: no item found. Tree has only the skipped item?"
         bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree whose bounding box is closest to the given query point.
@@ -535,16 +535,16 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         search node.RightChild
                         search node.LeftOrStart
         search root
-        if bestIdx = -1 then fail "Bvh.ClosestBox: no item found. Tree has only the skipped item?"
+        if bestIdx = -1 then fail "BVH.ClosestBox: no item found. Tree has only the skipped item?"
         bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the pair of closest items among all items in the tree, measured with
     /// the given exact squared distance function. For every item the nearest neighbor
     /// is searched with branch and bound pruning on the bounding boxes.</summary>
     /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
-    /// <returns>A BvhPair with the indices of the two closest items and their distance.</returns>
-    member bvh.ClosestPair (sqDistance: 'T -> 'T -> float) : BvhPair =
-        if items.Count < 2 then fail "Bvh.ClosestPair: needs at least two items."
+    /// <returns>A BVHPair with the indices of the two closest items and their distance.</returns>
+    member bvh.ClosestPair (sqDistance: 'T -> 'T -> float) : BVHPair =
+        if items.Count < 2 then fail "BVH.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
         for i = 0 to items.Count - 1 do
             let j, d = bvh.ClosestItem (boxes.[i], sqDistance items.[i], i)
@@ -554,9 +554,9 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
 
     /// <summary>Finds the pair of items whose bounding boxes are closest to each other.
     /// The distance between two boxes is 0.0 if they overlap or touch.</summary>
-    /// <returns>A BvhPair with the indices of the two items and the distance between their boxes.</returns>
-    member bvh.ClosestPair () : BvhPair =
-        if items.Count < 2 then fail "Bvh.ClosestPair: needs at least two items."
+    /// <returns>A BVHPair with the indices of the two items and the distance between their boxes.</returns>
+    member bvh.ClosestPair () : BVHPair =
+        if items.Count < 2 then fail "BVH.ClosestPair: needs at least two items."
         let mutable best = { IdxA = -1; IdxB = -1; Distance = Double.MaxValue }
         for i = 0 to items.Count - 1 do
             let j, d = bvh.ClosestBox (boxes.[i], i)
@@ -567,29 +567,29 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// <summary>For every item in the tree finds its nearest neighbor item, measured with
     /// the given exact squared distance function.</summary>
     /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
-    /// <returns>An array of BvhPair. The entry at index i holds i as IdxA, the index of the
+    /// <returns>An array of BVHPair. The entry at index i holds i as IdxA, the index of the
     /// nearest neighbor of item i as IdxB and the distance between them.</returns>
-    member bvh.NearestNeighbors (sqDistance: 'T -> 'T -> float) : BvhPair[] =
-        if items.Count < 2 then fail "Bvh.NearestNeighbors: needs at least two items."
+    member bvh.NearestNeighbors (sqDistance: 'T -> 'T -> float) : BVHPair[] =
+        if items.Count < 2 then fail "BVH.NearestNeighbors: needs at least two items."
         Array.init items.Count (fun i ->
             let j, d = bvh.ClosestItem (boxes.[i], sqDistance items.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 
     /// <summary>For every item in the tree finds the item whose bounding box is nearest to its own.
     /// The distance between two boxes is 0.0 if they overlap or touch.</summary>
-    /// <returns>An array of BvhPair. The entry at index i holds i as IdxA, the index of the
+    /// <returns>An array of BVHPair. The entry at index i holds i as IdxA, the index of the
     /// item with the nearest bounding box as IdxB and the distance between the boxes.</returns>
-    member bvh.NearestNeighbors () : BvhPair[] =
-        if items.Count < 2 then fail "Bvh.NearestNeighbors: needs at least two items."
+    member bvh.NearestNeighbors () : BVHPair[] =
+        if items.Count < 2 then fail "BVH.NearestNeighbors: needs at least two items."
         Array.init items.Count (fun i ->
             let j, d = bvh.ClosestBox (boxes.[i], i)
             { IdxA = i; IdxB = j; Distance = d })
 
     /// Internal worker for both ClosePairs overloads, taking a squared distance function on item indices.
-    member private _.ClosePairsByIdx (maxDistance: float, sqDistIdx: int -> int -> float) : ResizeArray<BvhPair> =
-        if maxDistance < 0.0 then fail $"Bvh.ClosePairs: maxDistance {maxDistance} must not be negative."
+    member private _.ClosePairsByIdx (maxDistance: float, sqDistIdx: int -> int -> float) : ResizeArray<BVHPair> =
+        if maxDistance < 0.0 then fail $"BVH.ClosePairs: maxDistance {maxDistance} must not be negative."
         let sqMaxDist = maxDistance * maxDistance
-        let result = ResizeArray<BvhPair>()
+        let result = ResizeArray<BVHPair>()
         let inline testPair a b =
             if a <> b then
                 let i = min a b
@@ -630,16 +630,16 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// than the maximum distance are skipped entirely.</summary>
     /// <param name="maxDistance">The maximum distance between two items for the pair to be reported.</param>
     /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
-    /// <returns>A ResizeArray of BvhPair, each with IdxA less than IdxB. The order of the pairs is not defined.</returns>
-    member bvh.ClosePairs (maxDistance: float, sqDistance: 'T -> 'T -> float) : ResizeArray<BvhPair> =
+    /// <returns>A ResizeArray of BVHPair, each with IdxA less than IdxB. The order of the pairs is not defined.</returns>
+    member bvh.ClosePairs (maxDistance: float, sqDistance: 'T -> 'T -> float) : ResizeArray<BVHPair> =
         bvh.ClosePairsByIdx (maxDistance, fun i j -> sqDistance items.[i] items.[j])
 
     /// <summary>Finds all pairs of items whose bounding boxes are closer to each other
     /// than the given maximum distance. The distance between two boxes is 0.0 if they overlap or touch,
     /// so a maxDistance of 0.0 finds all pairs of overlapping or touching boxes.</summary>
     /// <param name="maxDistance">The maximum distance between two item boxes for the pair to be reported.</param>
-    /// <returns>A ResizeArray of BvhPair, each with IdxA less than IdxB. The order of the pairs is not defined.</returns>
-    member bvh.ClosePairs (maxDistance: float) : ResizeArray<BvhPair> =
+    /// <returns>A ResizeArray of BVHPair, each with IdxA less than IdxB. The order of the pairs is not defined.</returns>
+    member bvh.ClosePairs (maxDistance: float) : ResizeArray<BVHPair> =
         bvh.ClosePairsByIdx (maxDistance, fun i j -> BvhUtil.sqBoxDist boxes.[i] boxes.[j])
 
     /// <summary>Finds the indices of all items whose bounding box is closer to the given
@@ -648,7 +648,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// <param name="tolerance">The tolerance distance around the box. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
     member _.ItemsInBox (box: BBox, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
-        if tolerance < 0.0 then fail $"Bvh.ItemsInBox: tolerance {tolerance} must not be negative."
+        if tolerance < 0.0 then fail $"BVH.ItemsInBox: tolerance {tolerance} must not be negative."
         let sqTol = tolerance * tolerance
         let result = ResizeArray<int>()
         let rec search nodeIdx =
@@ -672,7 +672,7 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
     member _.ItemsNearPoint (pt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
-        if tolerance < 0.0 then fail $"Bvh.ItemsNearPoint: tolerance {tolerance} must not be negative."
+        if tolerance < 0.0 then fail $"BVH.ItemsNearPoint: tolerance {tolerance} must not be negative."
         let sqTol = tolerance * tolerance
         let result = ResizeArray<int>()
         let rec search nodeIdx =
@@ -814,43 +814,43 @@ type Bvh<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         heap.Push (BvhUtil.sqBoxPntDist pt nodes.[node.RightChild].Box, node.RightChild)
         }
 
-/// Provides static functions to create Bvh trees without specifying the generic type argument.
+/// Provides static functions to create BVH trees without specifying the generic type argument.
 [<AbstractClass; Sealed>]
-type Bvh private () =
+type BVH private () =
 
-    /// <summary>Builds a Bvh from the given items.
+    /// <summary>Builds a BVH from the given items.
     /// The tree is built top-down by splitting at the median of the item-box centers
     /// along the axis where those centers have the greatest spread.</summary>
     /// <param name="items">The items to build the tree from. The array is referenced, not copied. Do not mutate it afterwards.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
-    /// <returns>A new immutable Bvh.</returns>
-    static member create (items: 'T[], getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
-        Bvh<'T>.create (items, getBox, leafSize)
+    /// <returns>A new immutable BVH.</returns>
+    static member create (items: 'T[], getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : BVH<'T> =
+        BVH<'T>.create (items, getBox, leafSize)
 
-    /// <summary>Builds a Bvh from the given resizable array of items.</summary>
+    /// <summary>Builds a BVH from the given resizable array of items.</summary>
     /// <param name="items">The items to build the tree from. The ResizeArray is used directly, not copied. Do not modify it or its items afterwards.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
-    /// <returns>A new immutable Bvh.</returns>
-    static member create (items: ResizeArray<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
-        Bvh<'T>.create (items, getBox, leafSize)
+    /// <returns>A new immutable BVH.</returns>
+    static member create (items: ResizeArray<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : BVH<'T> =
+        BVH<'T>.create (items, getBox, leafSize)
 
-    /// <summary>Builds a Bvh from the given sequence of items.</summary>
+    /// <summary>Builds a BVH from the given sequence of items.</summary>
     /// <param name="items">The items to build the tree from. They are enumerated and copied to an array at build time.</param>
     /// <param name="getBox">A function returning the axis aligned bounding box of an item.
     ///  It is called once per item at build time.</param>
     /// <param name="leafSize">The maximum amount of items per leaf node. Optional, 4 by default.</param>
-    /// <returns>A new immutable Bvh.</returns>
-    static member create (items: seq<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : Bvh<'T> =
-        Bvh<'T>.create (items, getBox, leafSize)
+    /// <returns>A new immutable BVH.</returns>
+    static member create (items: seq<'T>, getBox: 'T -> BBox, [<OPT;DEF(0)>] leafSize: int) : BVH<'T> =
+        BVH<'T>.create (items, getBox, leafSize)
 
-    /// <summary>Builds a Bvh directly from bounding boxes. The boxes themselves are the items.</summary>
+    /// <summary>Builds a BVH directly from bounding boxes. The boxes themselves are the items.</summary>
     /// <param name="boxes">The axis aligned bounding boxes to build the tree from.
     ///  The array is referenced, not copied. Do not mutate it afterwards.</param>
     /// <param name="leafSize">The maximum amount of boxes per leaf node. Optional, 4 by default.</param>
-    /// <returns>A new immutable Bvh of BBox.</returns>
-    static member createFromBoxes (boxes: BBox[], [<OPT;DEF(0)>] leafSize: int) : Bvh<BBox> =
-        Bvh<BBox>.create (boxes, (fun b -> b), leafSize)
+    /// <returns>A new immutable BVH of BBox.</returns>
+    static member createFromBoxes (boxes: BBox[], [<OPT;DEF(0)>] leafSize: int) : BVH<BBox> =
+        BVH<BBox>.create (boxes, (fun b -> b), leafSize)

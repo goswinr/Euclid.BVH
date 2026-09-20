@@ -31,7 +31,7 @@ let createScene (seed: int) : Scene =
             let angle = random.NextDouble() * Math.PI * 2.0
             let length = 1.0 + random.NextDouble() * 4.0
             Line2D (x, y, x + cos angle * length, y + sin angle * length))
-    let tree = LineBvh2D.create (lines, 2)
+    let tree = BVHLine2D.create (lines, 2)
     {
         Lines =
             lines

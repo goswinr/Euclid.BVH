@@ -35,7 +35,7 @@ let tests =
             for name, coordinates in structuredInputs () do
                 let boxes = coordinates |> Array.map (fun x -> BBox.createFromCenter (Pnt (x, 0., 0.), 0., 0., 0.))
                 for leafSize in [ 1; 7 ] do
-                    let tree = Bvh.createFromBoxes (boxes, leafSize)
+                    let tree = BVH.createFromBoxes (boxes, leafSize)
                     tree.BoxesByDistance (Pnt (-1., 0., 0.)) |> Seq.toArray |> checkEnumeration name coordinates
         )
 
@@ -43,7 +43,7 @@ let tests =
             for name, coordinates in structuredInputs () do
                 let rects = coordinates |> Array.map (fun x -> BRect.createXY (x, 0., x, 0.))
                 for leafSize in [ 1; 7 ] do
-                    let tree = Bvh2D.createFromRects (rects, leafSize)
+                    let tree = BVH2D.createFromRects (rects, leafSize)
                     tree.RectsByDistance (Pt (-1., 0.)) |> Seq.toArray |> checkEnumeration name coordinates
                     // For these point rectangles, a correct median partition has ordered,
                     // non-overlapping X ranges at every depth, including below the root.
@@ -68,7 +68,7 @@ let tests =
                     | 0 -> Pnt (q, 5e5, 0.)
                     | 1 -> Pnt (0., q, 5e5)
                     | _ -> Pnt (5e5, 0., q)
-                let tree = Bvh.create (Array.map makeLine offsets, BBox.createFromLine)
+                let tree = BVH.create (Array.map makeLine offsets, BBox.createFromLine)
                 let mutable calls = 0
                 let idx, distance = tree.ClosestItem (query, fun line ->
                     calls <- calls + 1
@@ -89,7 +89,7 @@ let tests =
                     if axis = 0 then Line2D (offset, 0., offset, 1e6)
                     else Line2D (0., offset, 1e6, offset)
                 let query = if axis = 0 then Pt (q, 5e5) else Pt (5e5, q)
-                let tree = Bvh2D.create (Array.map makeLine offsets, BRect.createFromLine)
+                let tree = BVH2D.create (Array.map makeLine offsets, BRect.createFromLine)
                 let mutable calls = 0
                 let idx, distance = tree.ClosestItem (query, fun line ->
                     calls <- calls + 1

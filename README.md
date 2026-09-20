@@ -41,7 +41,7 @@ open Euclid
 let lines : Line3D[] = ...
 
 // build once, typically O(n log n):
-let bvh = LineBvh.create lines
+let bvh = BVHLine3D.create lines
 
 // the closest line to a query line:
 let index, distance = bvh.ClosestLine (Line3D (0., 0., 0., 1., 1., 1.))
@@ -73,7 +73,7 @@ let tenNearest = bvh.LinesByDistance (Pnt (5., 5., 5.)) |> Seq.truncate 10 |> Se
 
 ### Generic usage
 
-The tree itself is generic: `Bvh<'T>` works with any item type, given a function that returns
+The tree itself is generic: `BVH<'T>` works with any item type, given a function that returns
 the bounding box of an item. It can also be built and queried with plain boxes.
 
 ```fsharp
@@ -81,7 +81,7 @@ open Euclid
 
 // build directly from bounding boxes, the boxes are the items:
 let boxes : BBox[] = ...
-let bvh = Bvh.createFromBoxes boxes
+let bvh = BVH.createFromBoxes boxes
 
 // the box closest to a query box (distance 0.0 if they overlap or touch):
 let (index, distance) = bvh.ClosestBox queryBox
@@ -92,7 +92,7 @@ let overlaps = bvh.ClosePairs 0.0
 // or build from any items with a box function:
 type Ball = { Center: Pnt; Radius: float }
 let balls : Ball[] = ...
-let bvh = Bvh.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radius, 2.*b.Radius, 2.*b.Radius))
+let bvh = BVH.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radius, 2.*b.Radius, 2.*b.Radius))
 
 // box based queries work as-is; for exact distances supply a squared distance function:
 let sqDist a b = let d = max 0.0 (a.Center.DistanceTo b.Center - a.Radius - b.Radius) in d * d
@@ -106,21 +106,21 @@ prune subtrees safely in both flavors of query.
 
 ### 2D usage
 
-`Bvh2D<'T>` provides the same generic queries for 2D items bounded by Euclid `BRect`
-values, with `Pt` point queries. `LineBvh2D` adds exact `Line2D` segment queries.
+`BVH2D<'T>` provides the same generic queries for 2D items bounded by Euclid `BRect`
+values, with `Pt` point queries. `BVHLine2D` adds exact `Line2D` segment queries.
 
 It is a genuinely two dimensional tree with its own data structure: its nodes store a `BRect`,
 not a `BBox` with a zero Z range. So it needs a third less memory per node and does a third
-less arithmetic per distance test than the 3D `Bvh<'T>`.
+less arithmetic per distance test than the 3D `BVH<'T>`.
 
 ```fsharp
 let rects : BRect[] = ...
-let bvh = Bvh2D.createFromRects rects
+let bvh = BVH2D.createFromRects rects
 let index, distance = bvh.ClosestRect (Pt (5., 5.))
 let nearby = bvh.ItemsInRect (BRect.createXY (0., 0., 10., 10.))
 
 let lines : Line2D[] = ...
-let lineBvh = LineBvh2D.create lines
+let lineBvh = BVHLine2D.create lines
 let lineIndex, lineDistance = lineBvh.ClosestLine (Pt (5., 5.))
 ```
 
@@ -151,7 +151,7 @@ tree that is closer than the last entry taken is ever visited. Taking a single e
 about as much as `ClosestBox`, taking all of them sorts the whole tree. The sequence is
 re-enumerable, and each enumeration starts a new traversal.
 
-`Bvh2D` has `RectsByDistance` and `ItemsByDistance`, `LineBvh` and `LineBvh2D` have
+`BVH2D` has `RectsByDistance` and `ItemsByDistance`, `BVHLine3D` and `BVHLine2D` have
 `LinesByDistance`, each with a query volume or a query point overload and an optional
 `skipIdx` to exclude an item that is itself in the tree.
 
@@ -177,7 +177,7 @@ let lines =
         let v = Vec (rand.NextDouble() - 0.5, rand.NextDouble() - 0.5, rand.NextDouble() - 0.5)
         Line3D.createFromPntAndVec (p, v))
 
-let bvh = LineBvh.create lines
+let bvh = BVHLine3D.create lines
 
 // all pairs of lines closer than 0.25 units to each other, via dual tree traversal:
 let clashes = bvh.ClosePairs 0.25
@@ -229,7 +229,7 @@ for idx in bvh.LinesNearPoint (mousePt, 2.0) do
 
 ### Overlapping boxes with the generic tree
 
-`Bvh<'T>` can be used with plain boxes, for example as a broad phase for collision detection:
+`BVH<'T>` can be used with plain boxes, for example as a broad phase for collision detection:
 
 ```fsharp
 open System
@@ -243,7 +243,7 @@ let boxes =
         let c = Pnt (rand.NextDouble() * 100., rand.NextDouble() * 100., rand.NextDouble() * 100.)
         BBox.createFromCenter (c, rand.NextDouble(), rand.NextDouble(), rand.NextDouble()))
 
-let bvh = Bvh.createFromBoxes boxes
+let bvh = BVH.createFromBoxes boxes
 
 // all pairs of boxes that overlap or touch:
 let overlaps = bvh.ClosePairs 0.0
@@ -272,7 +272,7 @@ let balls =
         { Center = Pnt (rand.NextDouble() * 100., rand.NextDouble() * 100., rand.NextDouble() * 100.)
           Radius = 0.1 + rand.NextDouble() })
 
-let bvh = Bvh.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radius, 2.*b.Radius, 2.*b.Radius))
+let bvh = BVH.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radius, 2.*b.Radius, 2.*b.Radius))
 
 // exact squared surface-to-surface distance between two balls:
 let sqDist a b =
@@ -288,12 +288,12 @@ let touching = bvh.ClosePairs (0.1, sqDist)
 
 ## API
 
-The core type is the generic `Bvh<'T>`:
+The core type is the generic `BVH<'T>`:
 
 | Member | Description |
 | --- | --- |
-| `Bvh.create (items, getBox, ?leafSize)` | Builds the immutable tree from any items and a bounding box function. |
-| `Bvh.createFromBoxes (boxes, ?leafSize)` | Builds the tree directly from `BBox[]`, the boxes are the items. |
+| `BVH.create (items, getBox, ?leafSize)` | Builds the immutable tree from any items and a bounding box function. |
+| `BVH.createFromBoxes (boxes, ?leafSize)` | Builds the tree directly from `BBox[]`, the boxes are the items. |
 | `bvh.ClosestBox (queryBox, ?skipIdx)` | The item whose bounding box is closest to a query box. |
 | `bvh.ClosestBox (pt, ?skipIdx)` | The item whose bounding box is closest to a 3D point. |
 | `bvh.ClosestItem (queryBox, sqDistanceTo, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
@@ -306,13 +306,13 @@ The core type is the generic `Bvh<'T>`:
 | `bvh.BoxesByDistance (queryBox, ?skipIdx)` / `bvh.BoxesByDistance (pt, ?skipIdx)` | A lazy `seq` of all items ordered by the distance of their bounding box, closest first. |
 | `bvh.ItemsByDistance (queryBox, sqDistanceTo, ?skipIdx)` / `bvh.ItemsByDistance (pt, sqDistanceTo, ?skipIdx)` | A lazy `seq` of all items ordered by an exact squared distance function, closest first. |
 
-`Bvh2D<'T>` is the 2D equivalent, built on `BRect` instead of `BBox`. It has the same members,
+`BVH2D<'T>` is the 2D equivalent, built on `BRect` instead of `BBox`. It has the same members,
 with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 
 | Member | Description |
 | --- | --- |
-| `Bvh2D.create (items, getRect, ?leafSize)` | Builds an immutable 2D tree from any items and a `BRect` function. |
-| `Bvh2D.createFromRects (rects, ?leafSize)` | Builds a 2D tree directly from `BRect[]`, the rectangles are the items. |
+| `BVH2D.create (items, getRect, ?leafSize)` | Builds an immutable 2D tree from any items and a `BRect` function. |
+| `BVH2D.createFromRects (rects, ?leafSize)` | Builds a 2D tree directly from `BRect[]`, the rectangles are the items. |
 | `bvh.ClosestRect (queryRect, ?skipIdx)` | The item whose bounding rectangle is closest to a query rectangle. |
 | `bvh.ClosestRect (pt, ?skipIdx)` | The item whose bounding rectangle is closest to a 2D point. |
 | `bvh.ClosestItem (queryRect, sqDistanceTo, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
@@ -326,11 +326,11 @@ with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 | `bvh.ItemsByDistance (queryRect, sqDistanceTo, ?skipIdx)` / `bvh.ItemsByDistance (pt, sqDistanceTo, ?skipIdx)` | A lazy `seq` of all items ordered by an exact squared distance function, closest first. |
 | `bvh.Rectangle` | The bounding rectangle around all items. |
 
-`LineBvh` is a thin wrapper over `Bvh<Line3D>` that measures exact segment-to-segment distances:
+`BVHLine3D` is a thin wrapper over `BVH<Line3D>` that measures exact segment-to-segment distances:
 
 | Member | Description |
 | --- | --- |
-| `LineBvh.create (lines, ?leafSize)` | Builds the immutable tree from an array of `Line3D`. |
+| `BVHLine3D.create (lines, ?leafSize)` | Builds the immutable tree from an array of `Line3D`. |
 | `bvh.ClosestLine (query, ?skipIdx)` | The index of and distance to the line closest to a query line. |
 | `bvh.ClosestPair ()` | The globally closest pair of lines. |
 | `bvh.NearestNeighbors ()` | The nearest neighbor of every line. |
@@ -340,9 +340,9 @@ with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 | `bvh.ClosestPoint pt` | The point on any line in the tree that is closest to a 3D point. |
 | `bvh.LinesNearPoint (pt, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given 3D point. |
 | `bvh.LinesByDistance (query, ?skipIdx)` / `bvh.LinesByDistance (pt, ?skipIdx)` | A lazy `seq` of all lines ordered by their exact distance to a query line or point, closest first. |
-| `bvh.Tree` | The underlying generic `Bvh<Line3D>`. |
+| `bvh.Tree` | The underlying generic `BVH<Line3D>`. |
 
-`LineBvh2D` provides the corresponding `Line2D` API: `ClosestLine`, `ClosestPoint`,
+`BVHLine2D` provides the corresponding `Line2D` API: `ClosestLine`, `ClosestPoint`,
 `ClosestPair`, `NearestNeighbors`, `ClosePairs`, `LinesInRect`, `LinesNearPoint`, and
 `LinesByDistance`.
 

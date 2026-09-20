@@ -143,7 +143,7 @@ let private createLines seed lineCount =
 
 let private measureClosestLine (lines: Line2D[]) queryIndex =
     let query = lines.[queryIndex]
-    let bvh = LineBvh2D.create lines
+    let bvh = BVHLine2D.create lines
     let iterations = max 1 (2_000_000 / lines.Length)
     let mutable bvhResult = -1, Double.MaxValue
 
