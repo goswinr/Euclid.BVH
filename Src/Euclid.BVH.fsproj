@@ -45,7 +45,7 @@
 
   <ItemGroup>
     <PackageReference Update="FSharp.Core" Version="6.0.7" />
-    <PackageReference Include="Euclid" Version="0.51.0" />
+    <PackageReference Include="Euclid" Version="0.52.0" />
     <PackageReference Include="Fable.Core" Version="4.5.0" Condition="$(DefineConstants.Contains('FABLE_COMPILER'))" />    <!-- needed by the Fable sources of the Euclid package -->
 
     <!-- build time only : -->

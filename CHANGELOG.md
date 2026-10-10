@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-10
 ### Changed
+- Updated to Euclid 0.52.0.
 - The 2D and 3D tree builders accumulate bounding coordinates directly, avoiding temporary rectangle and box objects inside the bounds loops when compiled with Fable; the split strategy and public API are unchanged.
 
 ## [0.2.0] - 2026-09-20
@@ -52,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fable support: the library and all tests compile and pass with Fable (JavaScript and TypeScript), tested with Mocha in CI like the Euclid library.
 - An interactive SVG nearest-neighbour visualisation for 20–20,000 random lines, stepping through queries, selecting 1–10 neighbours, showing the bounding rectangles tested by the search and comparing per-query BVH performance with brute-force closest-line search.
 
-[Unreleased]: https://github.com/goswinr/Euclid.BVH/compare/0.2.0...HEAD
+[Unreleased]: https://github.com/goswinr/Euclid.BVH/compare/0.2.1...HEAD
+[0.2.1]: https://github.com/goswinr/Euclid.BVH/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/goswinr/Euclid.BVH/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/goswinr/Euclid.BVH/releases/tag/0.1.0
