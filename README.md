@@ -155,6 +155,27 @@ re-enumerable, and each enumeration starts a new traversal.
 `LinesByDistance`, each with a query volume or a query point overload and an optional
 `skipIdx` to exclude an item that is itself in the tree.
 
+### Polyline self intersection
+
+Opening `Euclid` also adds `tryFindSelfIntersectionWithBvh` to Euclid's `Polyline2D` and `Polyline3D`.
+It puts the segments of the polyline into a tree and tests only the pairs of segments whose
+bounding rectangles or boxes touch, in about `O(n log n)` instead of the `O(n²)` of testing every pair:
+
+```fsharp
+match Polyline2D.tryFindSelfIntersectionWithBvh polyline with
+| Some (pt, i, j) -> printfn $"segments {i} and {j} intersect at {pt}"
+| None -> printfn "no self intersection"
+
+// in 3D two segments intersect if they come closer than the skew distance, 1e-6 by default:
+let hit = Polyline3D.tryFindSelfIntersectionWithBvh (polyline3D, 0.01)
+```
+
+In 2D it returns the same result as Euclid's `Polyline2D.tryFindSelfIntersectionWithBRect`.
+Building the tree costs more than it saves on small polylines: on .NET it is faster than testing
+every pair of segments from about 200 points on in 2D and from about 50 points on in 3D.
+On Fable JavaScript the 2D crossover depends on what else the program runs.
+See the [benchmark](Test/BenchPolylineSelfIntersection/README.md) for the measurements.
+
 ## Examples
 
 Runnable examples for an F# script (`.fsx`) after `#r "nuget: Euclid.BVH"`.
@@ -345,6 +366,13 @@ with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 `BVHLine2D` provides the corresponding `Line2D` API: `ClosestLine`, `ClosestPoint`,
 `ClosestPair`, `NearestNeighbors`, `ClosePairs`, `LinesInRect`, `LinesNearPoint`, and
 `LinesByDistance`.
+
+Extension members on Euclid's polylines, available after `open Euclid`:
+
+| Member | Description |
+| --- | --- |
+| `Polyline2D.tryFindSelfIntersectionWithBvh pl` | The first self intersection of a 2D polyline, as the intersection point and the two segment indices, using a `BVH2D` over its segments. |
+| `Polyline3D.tryFindSelfIntersectionWithBvh (pl, ?maxSkewDistance)` | The first self intersection of a 3D polyline, where two segments intersect if they come closer than `maxSkewDistance`, using a `BVH` over its segments. |
 
 Full API documentation: [goswinr.github.io/Euclid.BVH](https://goswinr.github.io/Euclid.BVH)
 

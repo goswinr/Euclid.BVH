@@ -63,6 +63,7 @@
     <Compile Include="BVH2D.fs" />
     <Compile Include="BVHLine3D.fs" />
     <Compile Include="BVHLine2D.fs" />
+    <Compile Include="PolylineSelfIntersection.fs" />
   </ItemGroup>
 
   <Target Name="CopyReadmeToDocs" AfterTargets="Build">    <!-- for fsdocs to build locally -->

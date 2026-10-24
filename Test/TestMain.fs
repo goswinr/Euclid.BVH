@@ -22,4 +22,5 @@ let main _ =
             TestBvh.tests
             TestBvh2D.tests
             TestLineBvh.tests
+            TestSelfIntersection.tests
         ])

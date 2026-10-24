@@ -14,6 +14,7 @@
     <Compile Include="TestBvh.fs" />
     <Compile Include="TestBvh2D.fs" />
     <Compile Include="TestLineBvh.fs" />
+    <Compile Include="TestSelfIntersection.fs" />
     <Compile Include="TestMain.fs" />
   </ItemGroup>
 </Project>

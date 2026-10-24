@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- `Polyline2D.tryFindSelfIntersectionWithBvh` and `Polyline3D.tryFindSelfIntersectionWithBvh` extension members find a self intersection with a BVH over the segments, in about `O(n log n)` instead of `O(n²)`; the 3D one takes an optional `maxSkewDistance`, 1e-6 by default.
+- On .NET they are faster than testing every pair of segments from about 200 points on in 2D and from about 50 points on in 3D; the doc comments also give the Fable JavaScript sizes.
+- A benchmark of them against brute force on .NET and Fable JavaScript in `Test/BenchPolylineSelfIntersection`.
 
 ## [0.2.1] - 2026-10-10
 ### Changed
