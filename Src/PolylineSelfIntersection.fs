@@ -9,6 +9,40 @@ module AutoOpenPolyline2DBVH =
 
   type Polyline2D with
 
+    /// <summary>Finds all self intersections in a Polyline2D, using a BVH2D over the bounding rectangles of its segments.
+    /// Adjacent segments, including the first and last segments of a closed polyline, are skipped.
+    /// Two non-adjacent segments that just touch are reported.
+    /// Each intersecting segment pair is returned once, ordered by the first segment index, then the second.
+    /// Different segment pairs meeting at the same point are returned separately.</summary>
+    /// <param name="pl">The 2D polyline to check.</param>
+    /// <returns>A ResizeArray of intersection points and the indices of the two intersecting segments, with the smaller index first.
+    /// Empty if there is no self intersection or if the polyline has fewer than 3 points.</returns>
+    static member findAllSelfIntersectionsWithBvh (pl: Polyline2D) : ResizeArray<Pt * int * int> =
+        let result = ResizeArray<Pt * int * int>()
+        let xys = pl.XYs
+        let segmentCount = xys.Count / 2 - 1
+        if segmentCount >= 2 then
+            let lastSegment = segmentCount - 1
+            let isClosed = pl.IsAlmostClosed 1e-7
+            let segments = Array.init segmentCount id
+            let tree =
+                BVH2D.create (segments, fun s ->
+                    BRect.createXY(xys.[2 * s], xys.[2 * s + 1], xys.[2 * s + 2], xys.[2 * s + 3]))
+            // Test only pairs with overlapping bounding rectangles; ClosePairs returns a < b.
+            for pair in tree.ClosePairs(0.0) do
+                let a, b = pair.IdxA, pair.IdxB
+                if b <> a + 1 && not (isClosed && a = 0 && b = lastSegment) then
+                    let ia = 2 * a
+                    let ib = 2 * b
+                    match XLineXY.tryIntersect(
+                        xys.[ia], xys.[ia + 1], xys.[ib], xys.[ib + 1],
+                        xys.[ia + 2] - xys.[ia], xys.[ia + 3] - xys.[ia + 1],
+                        xys.[ib + 2] - xys.[ib], xys.[ib + 3] - xys.[ib + 1]) with
+                    | ValueSome pt -> result.Add (pt, a, b)
+                    | ValueNone -> ()
+            result.Sort(fun (_, a, b) (_, c, d) -> if a = c then compare b d else compare a c)
+        result
+
     /// <summary>Tries to find a self intersection in a Polyline2D, using a BVH2D over the bounding rectangles of its segments.
     /// A closed Polyline2D is not reported as a self intersection.
     /// Two non-adjacent segments that just touch are reported.
@@ -76,6 +110,49 @@ module AutoOpenPolyline2DBVH =
 module AutoOpenPolyline3DBVH =
 
   type Polyline3D with
+
+    /// <summary>Finds all self intersections in a Polyline3D, using a BVH over the bounding boxes of its segments.
+    /// Two non-adjacent segments intersect if they come closer to each other than maxSkewDistance.
+    /// Segments within 0.25 degrees of being parallel are not tested, so overlapping collinear segments are not found.
+    /// Adjacent segments, including the first and last segments of a closed polyline, are skipped.
+    /// Each intersecting segment pair is returned once, ordered by the first segment index, then the second.
+    /// Different segment pairs meeting at the same point are returned separately.</summary>
+    /// <param name="pl">The 3D polyline to check.</param>
+    /// <param name="maxSkewDistance">The maximum distance between two segments at their closest approach,
+    /// for them to still count as intersecting. Must not be negative. Optional, 1e-6 by default.</param>
+    /// <returns>A ResizeArray of the closest points on the first segments and the indices of the two intersecting segments, with the smaller index first.
+    /// Empty if there is no self intersection or if the polyline has fewer than 3 points.</returns>
+    static member findAllSelfIntersectionsWithBvh (pl: Polyline3D, [<OPT;DEF(1e-6)>] maxSkewDistance: float) : ResizeArray<Pnt * int * int> =
+        if maxSkewDistance < 0.0 then
+            fail $"Polyline3D.findAllSelfIntersectionsWithBvh: maxSkewDistance {maxSkewDistance} must not be negative."
+        let result = ResizeArray<Pnt * int * int>()
+        let xyzs = pl.XYZs
+        let segmentCount = xyzs.Count / 3 - 1
+        if segmentCount >= 2 then
+            let lastSegment = segmentCount - 1
+            let isClosed = pl.IsAlmostClosed 1e-7
+            let segments = Array.init segmentCount id
+            let tree =
+                BVH.create (segments, fun s ->
+                    let i = 3 * s
+                    let ax, ay, az = xyzs.[i], xyzs.[i + 1], xyzs.[i + 2]
+                    let bx, by, bz = xyzs.[i + 3], xyzs.[i + 4], xyzs.[i + 5]
+                    BBox.createUnchecked(min ax bx, min ay by, min az bz, max ax bx, max ay by, max az bz))
+            // Boxes farther apart than the skew distance cannot contain intersecting segments.
+            for pair in tree.ClosePairs(maxSkewDistance) do
+                let a, b = pair.IdxA, pair.IdxB
+                if b <> a + 1 && not (isClosed && a = 0 && b = lastSegment) then
+                    let ia = 3 * a
+                    let ib = 3 * b
+                    match XLineXYZ.tryIntersect(
+                        xyzs.[ia], xyzs.[ia + 1], xyzs.[ia + 2], xyzs.[ib], xyzs.[ib + 1], xyzs.[ib + 2],
+                        xyzs.[ia + 3] - xyzs.[ia], xyzs.[ia + 4] - xyzs.[ia + 1], xyzs.[ia + 5] - xyzs.[ia + 2],
+                        xyzs.[ib + 3] - xyzs.[ib], xyzs.[ib + 4] - xyzs.[ib + 1], xyzs.[ib + 5] - xyzs.[ib + 2],
+                        maxSkewDistance, Tangent.``0.25``, 1e-6) with
+                    | ValueSome pt -> result.Add (pt, a, b)
+                    | ValueNone -> ()
+            result.Sort(fun (_, a, b) (_, c, d) -> if a = c then compare b d else compare a c)
+        result
 
     /// <summary>Tries to find a self intersection in a Polyline3D, using a BVH over the bounding boxes of its segments.
     /// Two non-adjacent segments intersect if they come closer to each other than the maxSkewDistance.
