@@ -95,7 +95,7 @@ type BVHLine3D private (bvh: BVH<Line3D>) =
     /// <param name="maxDistance">The maximum distance between two lines for the pair to be reported.</param>
     /// <returns>A ResizeArray of LinePair, each with IdxA less than IdxB. The order of the pairs is not defined.</returns>
     member _.ClosePairs (maxDistance: float) : ResizeArray<LinePair> =
-        if maxDistance < 0.0 then fail $"BVHLine3D.ClosePairs: maxDistance {maxDistance} must not be negative."
+        if not (maxDistance >= 0.0) then fail $"BVHLine3D.ClosePairs: maxDistance {maxDistance} must not be negative or NaN."
         bvh.ClosePairs (maxDistance, sqDist)
 
     /// <summary>Finds the indices of all lines whose bounding box is closer to the given

@@ -157,12 +157,13 @@ let tests =
             let lines = randomLines rand 10
             let bvh = BVHLine3D.create lines
             assertThat (fun () -> bvh.ClosePairs -1.0 |> ignore) (tag "negative tolerance should throw" >> throws)
+            assertThat (fun () -> bvh.ClosePairs nan |> ignore) (tag "NaN tolerance should throw" >> throws)
         )
 
         test ("line range queries reject negative tolerances", fun _ ->
             let line = Line3D (0., 0., 0., 1., 0., 0.)
             let bvh = BVHLine3D.create [| line |]
-            for tolerance in [ -1.0; -1e-200 ] do
+            for tolerance in [ -1.0; -1e-200; nan ] do
                 assertThat (fun () -> bvh.LinesInBox (BBox.createFromLine line, tolerance) |> ignore) (tag $"negative line box tolerance {tolerance}" >> throws)
                 assertThat (fun () -> bvh.LinesNearPoint (Pnt (0.5, 0., 0.), tolerance) |> ignore) (tag $"negative line point tolerance {tolerance}" >> throws)
         )

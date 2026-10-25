@@ -237,7 +237,7 @@ let tests =
         test ("rectangle and point queries reject negative tolerances", fun _ ->
             let rect = BRect.createXY (-1., -1., 1., 1.)
             let bvh = BVH2D.createFromRects [| rect |]
-            for tolerance in [ -1.0; -1e-200 ] do
+            for tolerance in [ -1.0; -1e-200; nan ] do
                 assertThat (fun () -> bvh.ItemsInRect (rect, tolerance) |> ignore) (tag $"negative rectangle tolerance {tolerance}" >> throws)
                 assertThat (fun () -> bvh.ItemsNearPoint (Pt (0., 0.), tolerance) |> ignore) (tag $"negative point tolerance {tolerance}" >> throws)
         )
@@ -316,7 +316,7 @@ let tests =
         test ("2D line range queries reject negative tolerances", fun _ ->
             let line = Line2D (0., 0., 1., 0.)
             let bvh = BVHLine2D.create [| line |]
-            for tolerance in [ -1.0; -1e-200 ] do
+            for tolerance in [ -1.0; -1e-200; nan ] do
                 assertThat (fun () -> bvh.LinesInRect (BRect.createFromLine line, tolerance) |> ignore) (tag $"negative line rectangle tolerance {tolerance}" >> throws)
                 assertThat (fun () -> bvh.LinesNearPoint (Pt (0.5, 0.), tolerance) |> ignore) (tag $"negative line point tolerance {tolerance}" >> throws)
         )
@@ -415,5 +415,93 @@ let tests =
             let brute = disks |> Array.map (fun d -> sqrt (sqDistTo d)) |> Array.sort
             for i = 0 to found.Length - 1 do
                 assertThat (snd found.[i]) (tag $"exact distance to point at position {i}" >> isCloseTo brute.[i])
+        )
+
+        test ("close pairs reject a NaN maximum distance", fun _ ->
+            let bvh = BVH2D.createFromRects (randomRects (Random 2015) 20)
+            assertThat (fun () -> bvh.ClosePairs nan |> ignore) (tag "rectangle pairs" >> throws)
+            assertThat (fun () -> bvh.ClosePairs (nan, sqRectDist) |> ignore) (tag "exact pairs" >> throws)
+        )
+
+        test ("closest pair matches brute force at every leaf size", fun _ ->
+            let rand = Random 2016
+            let disks = randomDisks rand 250
+            let mutable bestExact = Double.MaxValue
+            let mutable bestRect = Double.MaxValue
+            for i = 0 to disks.Length - 1 do
+                for j = i + 1 to disks.Length - 1 do
+                    bestExact <- min bestExact (sqrt (diskSqDist disks.[i] disks.[j]))
+                    bestRect <- min bestRect (rectDistance (diskRect disks.[i]) (diskRect disks.[j]))
+            for leafSize in [ 1; 2; 4; 16 ] do
+                let bvh = BVH2D.create (disks, diskRect, leafSize)
+                let exact = bvh.ClosestPair diskSqDist
+                assertThat exact.Distance (tag $"exact distance with leaf size {leafSize}" >> isCloseTo bestExact)
+                assertThat (sqrt (diskSqDist disks.[exact.IdxA] disks.[exact.IdxB])) (tag $"the exact pair is at that distance with leaf size {leafSize}" >> isCloseTo bestExact)
+                assertThat (exact.IdxA < exact.IdxB) (tag "the exact pair is ordered" >> isTrue)
+                let byRect = bvh.ClosestPair ()
+                assertThat byRect.Distance (tag $"rectangle distance with leaf size {leafSize}" >> isCloseTo bestRect)
+                assertThat (rectDistance (diskRect disks.[byRect.IdxA]) (diskRect disks.[byRect.IdxB])) (tag $"the rectangle pair is at that distance with leaf size {leafSize}" >> isCloseTo bestRect)
+                assertThat (byRect.IdxA < byRect.IdxB) (tag "the rectangle pair is ordered" >> isTrue)
+        )
+
+        test ("closest pair finds a pair of the first and the last item", fun _ ->
+            let rand = Random 2017
+            let pts = Array.init 200 (fun _ -> Pt (rand.NextDouble() * 100.0, rand.NextDouble() * 100.0))
+            // a near copy of the first point at the end, each item only searches the items after it:
+            pts.[pts.Length - 1] <- Pt (pts.[0].X + 0.001, pts.[0].Y + 0.002)
+            let sqDist (a: Pt) (b: Pt) = (a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y)
+            let ptRect (p: Pt) = BRect.createXY (p.X, p.Y, p.X + 0.0001, p.Y + 0.0001)
+            for leafSize in [ 1; 2; 4; 16 ] do
+                let bvh = BVH2D.create (pts, ptRect, leafSize)
+                let exact = bvh.ClosestPair sqDist
+                assertThat (exact.IdxA, exact.IdxB) (tag $"exact pair with leaf size {leafSize}" >> isEqualTo (0, pts.Length - 1))
+                assertThat exact.Distance (tag "exact pair distance" >> isCloseTo (sqrt (0.001 * 0.001 + 0.002 * 0.002)))
+                let byRect = bvh.ClosestPair ()
+                assertThat (byRect.IdxA, byRect.IdxB) (tag $"rectangle pair with leaf size {leafSize}" >> isEqualTo (0, pts.Length - 1))
+        )
+
+        test ("exact queries ignore NaN distances and infinite ones come last", fun _ ->
+            let rand = Random 2018
+            let disks = randomDisks rand 150
+            let bvh = BVH2D.create (Array.init disks.Length id, (fun i -> diskRect disks.[i]))
+            // item 0 has no distance to anything, item 1 is infinitely far from everything:
+            let sqDist (a: int) (b: int) =
+                if a = 0 || b = 0 then nan
+                elif a = 1 || b = 1 then infinity
+                else diskSqDist disks.[a] disks.[b]
+            let pair = bvh.ClosestPair sqDist
+            let mutable best = Double.MaxValue
+            for i = 2 to disks.Length - 1 do
+                for j = i + 1 to disks.Length - 1 do
+                    best <- min best (sqrt (diskSqDist disks.[i] disks.[j]))
+            assertThat pair.Distance (tag "the closest pair without items 0 and 1" >> isCloseTo best)
+            let q = 5
+            let found = bvh.ItemsByDistance (diskRect disks.[q], sqDist q, q) |> Seq.toArray
+            assertThat found.Length (tag "all items except the query and item 0" >> isEqualTo (disks.Length - 2))
+            assertThat (found |> Array.exists (fun (i, _) -> i = 0)) (tag "item 0 is left out" >> isFalse)
+            assertThat (fst found.[found.Length - 1]) (tag "item 1 comes last" >> isEqualTo 1)
+            for k = 1 to found.Length - 1 do
+                assertThat (snd found.[k] >= snd found.[k - 1]) (tag $"distances increase at position {k}" >> isTrue)
+            let (nearest, _) = bvh.ClosestItem (diskRect disks.[q], sqDist q, q)
+            assertThat nearest (tag "the closest item is the first one enumerated" >> isEqualTo (fst found.[0]))
+            assertThat (fun () -> bvh.ClosestItem (diskRect disks.[q], (fun _ -> nan)) |> ignore) (tag "only NaN distances" >> throws)
+            assertThat (fun () -> bvh.ClosestItem (disks.[q].Center, (fun _ -> infinity)) |> ignore) (tag "only infinite distances" >> throws)
+        )
+
+        test ("close pairs only measure pairs of items whose rectangles are within the maximum distance", fun _ ->
+            let rand = Random 2020
+            let disks = randomDisks rand 300
+            let bvh = BVH2D.create (disks, diskRect)
+            let maxDist = 1.0
+            let mutable calls = 0
+            let found = bvh.ClosePairs (maxDist, fun a b -> calls <- calls + 1; diskSqDist a b) |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
+            let mutable nearRects = 0
+            let mutable expected = Set.empty
+            for i = 0 to disks.Length - 1 do
+                for j = i + 1 to disks.Length - 1 do
+                    if rectDistance (diskRect disks.[i]) (diskRect disks.[j]) <= maxDist then nearRects <- nearRects + 1
+                    if sqrt (diskSqDist disks.[i] disks.[j]) <= maxDist then expected <- expected.Add (i, j)
+            assertThat calls (tag "one exact distance per pair of near rectangles" >> isEqualTo nearRects)
+            assertThat found (tag "the pairs match brute force" >> isEqualTo expected)
         )
     ])

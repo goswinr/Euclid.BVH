@@ -210,7 +210,7 @@ let tests =
         test ("box and point queries reject negative tolerances", fun _ ->
             let box = BBox.createFromCenter (Pnt (0., 0., 0.), 2., 2., 2.)
             let bvh = BVH.createFromBoxes [| box |]
-            for tolerance in [ -1.0; -1e-200 ] do
+            for tolerance in [ -1.0; -1e-200; nan ] do
                 assertThat (fun () -> bvh.ItemsInBox (box, tolerance) |> ignore) (tag $"negative box tolerance {tolerance}" >> throws)
                 assertThat (fun () -> bvh.ItemsNearPoint (Pnt (0., 0., 0.), tolerance) |> ignore) (tag $"negative point tolerance {tolerance}" >> throws)
         )
@@ -448,5 +448,105 @@ let tests =
                 assertThat distances.Length (tag $"count with leaf size {leafSize}" >> isEqualTo reference.Length)
                 for i = 0 to distances.Length - 1 do
                     assertThat distances.[i] (tag $"distance at position {i} with leaf size {leafSize}" >> isCloseTo reference.[i])
+        )
+
+        test ("close pairs reject a NaN maximum distance", fun _ ->
+            let bvh = BVH.createFromBoxes (randomBoxes (Random 1025) 20)
+            assertThat (fun () -> bvh.ClosePairs nan |> ignore) (tag "box pairs" >> throws)
+            assertThat (fun () -> bvh.ClosePairs (nan, sqBoxDist) |> ignore) (tag "exact pairs" >> throws)
+        )
+
+        test ("closest pair matches brute force at every leaf size", fun _ ->
+            let rand = Random 1026
+            let balls = randomBalls rand 250
+            let mutable bestExact = Double.MaxValue
+            let mutable bestBox = Double.MaxValue
+            for i = 0 to balls.Length - 1 do
+                for j = i + 1 to balls.Length - 1 do
+                    bestExact <- min bestExact (sqrt (ballSqDist balls.[i] balls.[j]))
+                    bestBox <- min bestBox (boxDist (ballBox balls.[i]) (ballBox balls.[j]))
+            for leafSize in [ 1; 2; 4; 16 ] do
+                let bvh = BVH.create (balls, ballBox, leafSize)
+                let exact = bvh.ClosestPair ballSqDist
+                assertThat exact.Distance (tag $"exact distance with leaf size {leafSize}" >> isCloseTo bestExact)
+                assertThat (sqrt (ballSqDist balls.[exact.IdxA] balls.[exact.IdxB])) (tag $"the exact pair is at that distance with leaf size {leafSize}" >> isCloseTo bestExact)
+                assertThat (exact.IdxA < exact.IdxB) (tag "the exact pair is ordered" >> isTrue)
+                let byBox = bvh.ClosestPair ()
+                assertThat byBox.Distance (tag $"box distance with leaf size {leafSize}" >> isCloseTo bestBox)
+                assertThat (boxDist (ballBox balls.[byBox.IdxA]) (ballBox balls.[byBox.IdxB])) (tag $"the box pair is at that distance with leaf size {leafSize}" >> isCloseTo bestBox)
+                assertThat (byBox.IdxA < byBox.IdxB) (tag "the box pair is ordered" >> isTrue)
+        )
+
+        test ("closest pair finds a pair of the first and the last item", fun _ ->
+            let rand = Random 1027
+            let pts = Array.init 200 (fun _ -> Pnt (rand.NextDouble() * 100.0, rand.NextDouble() * 100.0, rand.NextDouble() * 20.0))
+            // a near copy of the first point at the end, each item only searches the items after it:
+            pts.[pts.Length - 1] <- Pnt (pts.[0].X + 0.001, pts.[0].Y + 0.002, pts.[0].Z)
+            let sqDist (a: Pnt) (b: Pnt) = (a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y) + (a.Z - b.Z) * (a.Z - b.Z)
+            let ptBox (p: Pnt) = BBox.createUnchecked (p.X, p.Y, p.Z, p.X + 0.0001, p.Y + 0.0001, p.Z + 0.0001)
+            for leafSize in [ 1; 2; 4; 16 ] do
+                let bvh = BVH.create (pts, ptBox, leafSize)
+                let exact = bvh.ClosestPair sqDist
+                assertThat (exact.IdxA, exact.IdxB) (tag $"exact pair with leaf size {leafSize}" >> isEqualTo (0, pts.Length - 1))
+                assertThat exact.Distance (tag "exact pair distance" >> isCloseTo (sqrt (0.001 * 0.001 + 0.002 * 0.002)))
+                let byBox = bvh.ClosestPair ()
+                assertThat (byBox.IdxA, byBox.IdxB) (tag $"box pair with leaf size {leafSize}" >> isEqualTo (0, pts.Length - 1))
+        )
+
+        test ("exact queries ignore NaN distances and infinite ones come last", fun _ ->
+            let rand = Random 1028
+            let balls = randomBalls rand 150
+            let bvh = BVH.create (Array.init balls.Length id, (fun i -> ballBox balls.[i]))
+            // item 0 has no distance to anything, item 1 is infinitely far from everything:
+            let sqDist (a: int) (b: int) =
+                if a = 0 || b = 0 then nan
+                elif a = 1 || b = 1 then infinity
+                else ballSqDist balls.[a] balls.[b]
+            let pair = bvh.ClosestPair sqDist
+            let mutable best = Double.MaxValue
+            for i = 2 to balls.Length - 1 do
+                for j = i + 1 to balls.Length - 1 do
+                    best <- min best (sqrt (ballSqDist balls.[i] balls.[j]))
+            assertThat pair.Distance (tag "the closest pair without items 0 and 1" >> isCloseTo best)
+            let q = 5
+            let found = bvh.ItemsByDistance (ballBox balls.[q], sqDist q, q) |> Seq.toArray
+            assertThat found.Length (tag "all items except the query and item 0" >> isEqualTo (balls.Length - 2))
+            assertThat (found |> Array.exists (fun (i, _) -> i = 0)) (tag "item 0 is left out" >> isFalse)
+            assertThat (fst found.[found.Length - 1]) (tag "item 1 comes last" >> isEqualTo 1)
+            for k = 1 to found.Length - 1 do
+                assertThat (snd found.[k] >= snd found.[k - 1]) (tag $"distances increase at position {k}" >> isTrue)
+            let (nearest, _) = bvh.ClosestItem (ballBox balls.[q], sqDist q, q)
+            assertThat nearest (tag "the closest item is the first one enumerated" >> isEqualTo (fst found.[0]))
+            assertThat (fun () -> bvh.ClosestItem (ballBox balls.[q], (fun _ -> nan)) |> ignore) (tag "only NaN distances" >> throws)
+            assertThat (fun () -> bvh.ClosestItem (balls.[q].Center, (fun _ -> infinity)) |> ignore) (tag "only infinite distances" >> throws)
+        )
+
+        test ("close pairs only measure pairs of items whose boxes are within the maximum distance", fun _ ->
+            let rand = Random 1030
+            let balls = randomBalls rand 300
+            let bvh = BVH.create (balls, ballBox)
+            let maxDist = 1.0
+            let mutable calls = 0
+            let found = bvh.ClosePairs (maxDist, fun a b -> calls <- calls + 1; ballSqDist a b) |> Seq.map (fun p -> p.IdxA, p.IdxB) |> Set.ofSeq
+            let mutable nearBoxes = 0
+            let mutable expected = Set.empty
+            for i = 0 to balls.Length - 1 do
+                for j = i + 1 to balls.Length - 1 do
+                    if boxDist (ballBox balls.[i]) (ballBox balls.[j]) <= maxDist then nearBoxes <- nearBoxes + 1
+                    if sqrt (ballSqDist balls.[i] balls.[j]) <= maxDist then expected <- expected.Add (i, j)
+            assertThat calls (tag "one exact distance per pair of near boxes" >> isEqualTo nearBoxes)
+            assertThat found (tag "the pairs match brute force" >> isEqualTo expected)
+        )
+
+        test ("the tree box is exactly the union of all item boxes", fun _ ->
+            let boxes = randomBoxes (Random 1031) 300
+            for leafSize in [ 1; 4; 16 ] do
+                let b = (BVH.createFromBoxes (boxes, leafSize)).Box
+                assertThat b.MinX (tag "MinX" >> isEqualTo (boxes |> Array.map (fun x -> x.MinX) |> Array.min))
+                assertThat b.MinY (tag "MinY" >> isEqualTo (boxes |> Array.map (fun x -> x.MinY) |> Array.min))
+                assertThat b.MinZ (tag "MinZ" >> isEqualTo (boxes |> Array.map (fun x -> x.MinZ) |> Array.min))
+                assertThat b.MaxX (tag "MaxX" >> isEqualTo (boxes |> Array.map (fun x -> x.MaxX) |> Array.max))
+                assertThat b.MaxY (tag "MaxY" >> isEqualTo (boxes |> Array.map (fun x -> x.MaxY) |> Array.max))
+                assertThat b.MaxZ (tag "MaxZ" >> isEqualTo (boxes |> Array.map (fun x -> x.MaxZ) |> Array.max))
         )
     ])

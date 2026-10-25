@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Polyline2D.tryFindSelfIntersectionWithBvh` and `Polyline3D.tryFindSelfIntersectionWithBvh` extension members find a self intersection with a BVH over the segments, in about `O(n log n)` instead of `O(n²)`; the 3D one takes an optional `maxSkewDistance`, 1e-6 by default.
 - On .NET they are faster than testing every pair of segments from about 200 points on in 2D and from about 50 points on in 3D; the doc comments also give the Fable JavaScript sizes.
 - A benchmark of them against brute force on .NET and Fable JavaScript in `Test/BenchPolylineSelfIntersection`.
+- A benchmark of all queries before and after a change, on .NET and Fable JavaScript, in `Test/BenchQueries`.
+
+### Changed
+- `ClosestPair` in `BVH` and `BVH2D`, and so in `BVHLine3D` and `BVHLine2D`, bounds the search from each item by the closest pair found so far and searches only the items after it; with the exact line distance it is 2.2 to 3.4 times faster on .NET and 1.9 to 3 times faster on Fable JavaScript.
+- The box and rectangle overload of `ClosestPair` returns at the first pair of touching bounds instead of searching from every item.
+- `ClosePairs` with an exact distance calls the distance function only for pairs of items whose bounds are within `maxDistance`; with the exact line distance it is about 2 times faster on .NET and 1.2 times faster on Fable JavaScript.
+- The closest item and nearest neighbor searches compute the distance to the bounds of each node only once.
+- The exact searches from a query box or rectangle, `ClosestPair` and `NearestNeighbors` compare the bounds of an item with the best distance so far before calling the distance function.
+- The `...ByDistance` sequences no longer allocate a tuple per heap entry, and Fable compiles their traversal to plain loops instead of nested sequences; they are about 1.25 to 1.3 times faster on Fable JavaScript.
+- The tree builders take the bounds of an internal node from its two children instead of from another pass over all its items.
+
+### Fixed
+- `ClosePairs`, `ItemsInBox`, `ItemsInRect`, `ItemsNearPoint` and the corresponding line queries reject a NaN `maxDistance` or `tolerance` instead of returning an empty result.
+- `ItemsByDistance` leaves out items whose distance is NaN; before, such an item could break the order of the whole sequence.
+- `ClosestPair` with an exact distance no longer fails when one item has no finite distance to any other item.
+- The errors of `ClosestItem` and `NearestNeighbors` no longer blame the skipped item when all distances are infinite or NaN.
 
 ## [0.2.1] - 2026-10-10
 ### Changed

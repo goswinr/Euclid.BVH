@@ -6,7 +6,7 @@ The two experiments suggested by the C-dev3 comparison were scalar bounds accumu
 
 ## Decision
 
-Retain scalar bounds accumulation in both builders. Do not retain the zero-tolerance query specialization: it improved some JavaScript queries but regressed .NET queries and some positive-tolerance JavaScript queries. Public APIs, the median/center-spread splitting strategy, and query implementations remain unchanged.
+Retain scalar bounds accumulation in both builders. (Later, after 0.2.1, the builders stopped collecting the bounds of internal nodes from their items at all and take the union of the two children instead, see [Test/BenchQueries](../BenchQueries/README.md).) Do not retain the zero-tolerance query specialization: it improved some JavaScript queries but regressed .NET queries and some positive-tolerance JavaScript queries. Public APIs, the median/center-spread splitting strategy, and query implementations remain unchanged.
 
 Both changes use ordinary F# and are Fable compatible. The retained change constructs a final `BRect`/`BBox` per node instead of repeatedly constructing union values inside the bounds loops. Inspecting the generated JavaScript confirmed that the constructors moved outside those loops. .NET already represents those bounds as structs, so a JavaScript benefit need not translate into a .NET benefit.
 
