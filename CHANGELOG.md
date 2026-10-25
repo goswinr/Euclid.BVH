@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.3.0] - 2026-10-25
 ### Added
 - `Polyline2D.findAllSelfIntersectionsWithBvh` and `Polyline3D.findAllSelfIntersectionsWithBvh` return all intersecting segment pairs and their points in a `ResizeArray`, ordered by segment indices; the 3D member accepts an optional `maxSkewDistance`.
 - `Polyline2D.tryFindSelfIntersectionWithBvh` and `Polyline3D.tryFindSelfIntersectionWithBvh` extension members find a self intersection with a BVH over the segments, in about `O(n log n)` instead of `O(n²)`; the 3D one takes an optional `maxSkewDistance`, 1e-6 by default.
@@ -75,7 +77,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fable support: the library and all tests compile and pass with Fable (JavaScript and TypeScript), tested with Mocha in CI like the Euclid library.
 - An interactive SVG nearest-neighbour visualisation for 20–20,000 random lines, stepping through queries, selecting 1–10 neighbours, showing the bounding rectangles tested by the search and comparing per-query BVH performance with brute-force closest-line search.
 
-[Unreleased]: https://github.com/goswinr/Euclid.BVH/compare/0.2.1...HEAD
+[Unreleased]: https://github.com/goswinr/Euclid.BVH/compare/0.3.0...HEAD
+[0.3.0]: https://github.com/goswinr/Euclid.BVH/compare/0.2.1...0.3.0
 [0.2.1]: https://github.com/goswinr/Euclid.BVH/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/goswinr/Euclid.BVH/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/goswinr/Euclid.BVH/releases/tag/0.1.0
