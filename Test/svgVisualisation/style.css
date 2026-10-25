@@ -5,6 +5,8 @@ svg { width: 100vw; height: 100vh; display: block; }
 button { border: 1px solid #5d6b7b; border-radius: 4px; padding: 5px 9px; color: inherit; background: #263342; cursor: pointer; }
 button:disabled { opacity: .45; cursor: default; }
 output { min-width: 76px; text-align: center; }
+#repo-link { position: fixed; right: 16px; bottom: 16px; padding: 8px; border-radius: 6px; background: #10151cdd; color: #55c3d9; text-decoration: none; }
+#repo-link:hover, #repo-link:focus-visible { text-decoration: underline; }
 .line { stroke: #e7edf5; stroke-width: .45; vector-effect: non-scaling-stroke; }
 .node { fill: none; stroke: #55c3d9; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .node.age-1 { stroke-opacity: .55; }

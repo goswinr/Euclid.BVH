@@ -9,6 +9,8 @@ button { cursor: pointer; }
 button:disabled { opacity: .45; cursor: default; }
 input { width: 58px; }
 output { min-width: 76px; text-align: center; }
+#repo-link { position: fixed; right: 16px; bottom: 16px; padding: 8px; border-radius: 6px; background: #10151cdd; color: #55c3d9; text-decoration: none; }
+#repo-link:hover, #repo-link:focus-visible { text-decoration: underline; }
 .line { stroke: #6f7c89; stroke-width: .55; vector-effect: non-scaling-stroke; }
 .query { stroke: #ffad42; stroke-width: 2.2; }
 .neighbor { stroke: #71e39b; stroke-width: 1.7; }

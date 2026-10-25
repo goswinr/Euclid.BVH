@@ -11,11 +11,20 @@
 A Bounding Volume Hierarchy (BVH) for fast spatial queries on the
 [Euclid](https://github.com/goswinr/Euclid) geometry library.
 Like Euclid itself it also compiles to JavaScript and TypeScript via [Fable](https://fable.io/).
-Explore how the tree subdivides 2D line segments in the [interactive SVG visualisation](https://goswinr.github.io/Euclid.BVH/svgVisualisation/), or step through each line's 1–10 closest neighbours and the bounding rectangles tested during its search in the [nearest-neighbour visualisation](https://goswinr.github.io/Euclid.BVH/nearestNeighboursVisualisation/).
 
 Given thousands of static 3D lines with uneven spatial distribution, this library answers
 questions like *"which pairs of lines are closest to each other?"* in about `O(n log n)`
 instead of the `O(n²)` of a brute force scan.
+
+## Interactive nearest-neighbour demo
+
+**[Try the nearest-neighbour visualisation](https://goswinr.github.io/Euclid.BVH/nearestNeighboursVisualisation/)** to see the BVH in action.
+Step through each line's 1–10 closest neighbours, see which bounding rectangles the search tests,
+and compare BVH query times with a brute force scan. Adjust the line count and number of neighbours to explore how the search behaves.
+
+[![Nearest-neighbour visualisation showing an orange query line, green nearest neighbours, and cyan bounding rectangles tested during the search](https://raw.githubusercontent.com/goswinr/Euclid.BVH/main/Docs/img/screenshot1.png)](https://goswinr.github.io/Euclid.BVH/nearestNeighboursVisualisation/)
+
+For a closer look at how the tree subdivides 2D line segments, explore the [tree-depth visualisation](https://goswinr.github.io/Euclid.BVH/svgVisualisation/).
 
 ## Why a BVH?
 
