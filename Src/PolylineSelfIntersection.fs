@@ -1,10 +1,11 @@
 namespace Euclid
 
 open Euclid.EuclidErrors
+open System.ComponentModel
 
 /// When Euclid is opened this module will be auto-opened.
 /// It only contains extension members for type Polyline2D that use a BVH2D.
-[<AutoOpen>]
+[<AutoOpen; EditorBrowsable(EditorBrowsableState.Never)>]
 module AutoOpenPolyline2DBVH =
 
   type Polyline2D with
@@ -106,7 +107,7 @@ module AutoOpenPolyline2DBVH =
 
 /// When Euclid is opened this module will be auto-opened.
 /// It only contains extension members for type Polyline3D that use a BVH.
-[<AutoOpen>]
+[<AutoOpen; EditorBrowsable(EditorBrowsableState.Never)>]
 module AutoOpenPolyline3DBVH =
 
   type Polyline3D with
