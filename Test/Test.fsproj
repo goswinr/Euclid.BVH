@@ -5,7 +5,7 @@
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Scriptorium.Quill" Version="0.7.1" />
+    <PackageReference Include="Scriptorium.Quill" Version="0.7.2" />
     <PackageReference Include="Scriptorium.Nib" Version="0.4.1" />
     <ProjectReference Include="../Src/Euclid.BVH.fsproj" />
 
