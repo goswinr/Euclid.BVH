@@ -54,19 +54,21 @@ module internal BvhUtil2D =
         // the permutation of item indices, reordered in place while building:
         let idx = Array.zeroCreate<int> n
         for i = 0 to n - 1 do
-            idx.[i] <- i
+            Arr.setIdx i i idx
         // scratch space for the rectangle centers along the split axis of the current node, parallel to idx.
         // It is refilled for the range of each node, so that no per node array is needed:
         let keys = Array.zeroCreate<float> n
         // the count of nodes is known upfront, so the array is allocated at its exact size and filled in place:
         let nodes = Arr.zeroCreateUndef<BVHNode2D> (BvhUtil.nodeCount n leafSize)
+        // the rectangle of the item at position i of the permutation:
+        let inline rectAt i = Arr.getIdx (Arr.getIdx i idx) rects
 
         let rectOf start count =
-            let first = rects.[idx.[start]]
+            let first = rectAt start
             let mutable minX, minY = first.MinX, first.MinY
             let mutable maxX, maxY = first.MaxX, first.MaxY
             for i = start + 1 to start + count - 1 do
-                let r = rects.[idx.[i]]
+                let r = rectAt i
                 minX <- min r.MinX minX
                 minY <- min r.MinY minY
                 maxX <- max r.MaxX maxX
@@ -78,20 +80,20 @@ module internal BvhUtil2D =
         let rec buildNode nodeIdx start count : int =
             if count <= leafSize then
                 let rect = rectOf start count
-                nodes.[nodeIdx] <- { Rect = rect; LeftOrStart = start; RightChild = -1; Count = count }
+                Arr.setIdx nodeIdx { Rect = rect; LeftOrStart = start; RightChild = -1; Count = count } nodes
                 nodeIdx + 1
             else
                 // Collect the center ranges to choose the split axis. Item length must not force
                 // a split along an axis where the centers have little or no separation.
                 // The bounds of this node are not collected here, they are the union of its two children.
-                let first = rects.[idx.[start]]
+                let first = rectAt start
                 let mutable minX = (first.MinX + first.MaxX) * 0.5
                 let mutable minY = (first.MinY + first.MaxY) * 0.5
                 let mutable maxX = minX
                 let mutable maxY = minY
                 let last = start + count - 1
                 for i = start + 1 to last do
-                    let r = rects.[idx.[i]]
+                    let r = rectAt i
                     let cx = (r.MinX + r.MaxX) * 0.5
                     let cy = (r.MinY + r.MaxY) * 0.5
                     if cx < minX then minX <- cx
@@ -103,12 +105,12 @@ module internal BvhUtil2D =
                 let sizeY = maxY - minY
                 if sizeX >= sizeY then
                     for i = start to last do
-                        let ii = idx.[i]
-                        keys.[i] <- (rects.[ii].MinX + rects.[ii].MaxX) * 0.5
+                        let r = rectAt i
+                        Arr.setIdx i ((r.MinX + r.MaxX) * 0.5) keys
                 else
                     for i = start to last do
-                        let ii = idx.[i]
-                        keys.[i] <- (rects.[ii].MinY + rects.[ii].MaxY) * 0.5
+                        let r = rectAt i
+                        Arr.setIdx i ((r.MinY + r.MaxY) * 0.5) keys
                 let mid = count / 2
                 // Partition around the median, with a sort fallback only if selection exceeds its budget:
                 BvhUtil.selectNth idx keys start last (start + mid)
@@ -116,10 +118,10 @@ module internal BvhUtil2D =
                 let right = buildNode left start mid
                 let free = buildNode right (start + mid) (count - mid)
                 // The union of the two finished children is cheaper than another pass over all items:
-                let l = nodes.[left].Rect
-                let r = nodes.[right].Rect
+                let l = (Arr.getIdx left nodes).Rect
+                let r = (Arr.getIdx right nodes).Rect
                 let bounds = BRect.createUnchecked(min l.MinX r.MinX, min l.MinY r.MinY, max l.MaxX r.MaxX, max l.MaxY r.MaxY)
-                nodes.[nodeIdx] <- { Rect = bounds; LeftOrStart = left; RightChild = right; Count = 0 }
+                Arr.setIdx nodeIdx { Rect = bounds; LeftOrStart = left; RightChild = right; Count = 0 } nodes
                 free
 
         buildNode 0 0 n |> ignore
@@ -203,7 +205,7 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
         let leafSize = if leafSize < 1 then BVH2D<'T>.DefaultLeafSize else leafSize
         let rects = Arr.zeroCreateUndef<BRect> items.Count
         for i = 0 to items.Count - 1 do
-            rects.[i] <- getRect items.[i]
+            Arr.setIdx i (getRect (ResizeArr.getIdx i items)) rects
         BVH2D<'T>.createWithRects (items, rects, leafSize)
 
     /// <summary>Builds a BVH2D from the given sequence of items.</summary>

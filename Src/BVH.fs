@@ -12,12 +12,21 @@ type internal OPT = Runtime.InteropServices.OptionalAttribute
 type internal DEF = Runtime.InteropServices.DefaultParameterValueAttribute
 
 
+// Unchecked array access for the hot loops of tree building, the heap and the polyline self intersection.
+// In a Release build to JavaScript or TypeScript, Fable compiles arr.[i] to a call of item(i, arr) and
+// arr.[i] <- v to setItem(arr, i, v) from fable-library, which check the bounds.
+// These helpers emit plain arr[i] instead. On Node.js that made tree building 2.2 times, the ...ByDistance
+// sequences 2.9 times and the polyline self intersection 2.4 times faster. The queries gain only about 5%,
+// so they keep the normal indexing. An index out of range now returns undefined or is silently lost, instead of throwing.
+// In Debug builds and on .NET they are just the normal checked access, so the tests catch such bugs there.
+
 module internal Arr =
 
-    /// Just Array.zeroCreate<'T> in .NET, but when `UNCHECKED` is defined and used in Fable, it emits `new Array(len)`
-    /// without initializing the items to their default value.
-    /// Values are `undefined` in JavaScript
+    /// Just Array.zeroCreate<'T> in .NET and in Debug builds, but in a Fable Release build it emits `new Array(len)`
+    /// without initializing the items to their default value. Values are `undefined` in JavaScript.
+    /// Only use it if every item is set before it is read.
     /// Not safe on numbers, Fable emits TypedArrays for numeric arrays.
+    /// Not safe on bools and struct types either, their default value is not undefined.
     let inline zeroCreateUndef<'T> (len:int) : 'T [] = //
         #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
             Fable.Core.JsInterop.emitJsExpr (len) "new Array($0)"
@@ -39,36 +48,6 @@ module internal Arr =
             arr.[idx] <- value
         #endif
 
-    let inline len (arr: 'T[]) : int =
-        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
-            Fable.Core.JsInterop.emitJsExpr (arr) "$0.length" // avoid call to count() in fable lib
-        #else
-            arr.Length
-        #endif
-
-module internal ILst =
-
-    let inline getIdx (idx:int) (iLst: IList<'T>) : 'T=
-        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
-            Fable.Core.JsInterop.emitJsExpr (iLst,idx) "$0[$1]"
-        #else
-            iLst.[idx]
-        #endif
-
-    let inline setIdx (idx:int) (value:'T) (iLst: IList<'T>) : unit =
-        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
-            Fable.Core.JsInterop.emitJsStatement (iLst,idx,value) "$0[$1] = $2"
-        #else
-            iLst.[idx] <- value
-        #endif
-
-    let inline len (iLst: IList<'T>) : int =
-        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
-            Fable.Core.JsInterop.emitJsExpr (iLst) "$0.length" // avoid call to count() in fable lib
-        #else
-            iLst.Count
-        #endif
-
 module internal ResizeArr =
 
     let inline getIdx (idx:int) (resizeArray: ResizeArray<'T>) : 'T=
@@ -85,34 +64,18 @@ module internal ResizeArr =
             resizeArray.[idx] <- value
         #endif
 
-    let inline len (resizeArray: ResizeArray<'T>) : int =
-        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
-            Fable.Core.JsInterop.emitJsExpr (resizeArray) "$0.length" // avoid call to count() in fable lib
-        #else
-            resizeArray.Count
-        #endif
-
-    let inline lastIdx  (resizeArray: ResizeArray<'T>) : int =
-        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
-            Fable.Core.JsInterop.emitJsExpr (resizeArray) "$0.length - 1" // avoid call to count() in fable lib
-        #else
-            resizeArray.Count - 1
-        #endif
-
-    let inline clear (arr: ResizeArray<'T>) : unit =
-        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
-            Fable.Core.JsInterop.emitJsStatement arr "$0.length = 0"
-        #else
-            arr.Clear()
-        #endif
-
+    /// Removes the last item and returns it. Fable compiles RemoveAt to splice, which allocates an array for the removed item.
     let inline pop (arr: ResizeArray<'T>) : 'T =
-        #if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
+        #if RELEASE && FABLE_COMPILER_TYPESCRIPT
+            Fable.Core.JsInterop.emitJsExpr (arr) "$0.pop()!" // strict TypeScript types pop() as T | undefined
+        #else
+        #if RELEASE && FABLE_COMPILER_JAVASCRIPT
             Fable.Core.JsInterop.emitJsExpr (arr) "$0.pop()"
         #else
             let v = arr.[arr.Count - 1]
             arr.RemoveAt(arr.Count - 1)
             v
+        #endif
         #endif
 
 
@@ -186,9 +149,10 @@ module internal BvhUtil =
     /// Sorts a range of parallel indices and keys in place with heap sort.
     /// Used only when quickselect has spent its work budget; O(n log n) even on adversarial input.
     let private sortRange (idx: int[]) (keys: float[]) (first: int) (last: int) : unit =
+        let inline key i = Arr.getIdx i keys
         let inline swap i j =
-            let ti = idx.[i] in idx.[i] <- idx.[j] ; idx.[j] <- ti
-            let tk = keys.[i] in keys.[i] <- keys.[j] ; keys.[j] <- tk
+            let ti = Arr.getIdx i idx in Arr.setIdx i (Arr.getIdx j idx) idx ; Arr.setIdx j ti idx
+            let tk = key i in Arr.setIdx i (key j) keys ; Arr.setIdx j tk keys
         // Heap positions are relative to first, so ranges inside a subtree stay isolated.
         let siftDown root count =
             let mutable parent = root
@@ -197,9 +161,9 @@ module internal BvhUtil =
                 let left = 2 * parent + 1
                 let right = left + 1
                 let child =
-                    if right < count && keys.[first + right] > keys.[first + left] then right
+                    if right < count && key (first + right) > key (first + left) then right
                     else left
-                if keys.[first + child] > keys.[first + parent] then
+                if key (first + child) > key (first + parent) then
                     swap (first + parent) (first + child)
                     parent <- child
                 else
@@ -218,9 +182,10 @@ module internal BvhUtil =
     /// A linear budget of scanned items bounds the quickselect work; if exhausted, heap sort finishes
     /// the remaining range in O(n log n) without allocating another array.
     let selectNth (idx: int[]) (keys: float[]) (first: int) (last: int) (k: int) : unit =
+        let inline key i = Arr.getIdx i keys
         let inline swap i j =
-            let ti = idx.[i] in idx.[i] <- idx.[j] ; idx.[j] <- ti
-            let tk = keys.[i] in keys.[i] <- keys.[j] ; keys.[j] <- tk
+            let ti = Arr.getIdx i idx in Arr.setIdx i (Arr.getIdx j idx) idx ; Arr.setIdx j ti idx
+            let tk = key i in Arr.setIdx i (key j) keys ; Arr.setIdx j tk keys
         let mutable lo = first
         let mutable hi = last
         let mutable go = true
@@ -234,9 +199,9 @@ module internal BvhUtil =
             else
                 budget <- budget - work
                 // Median of the first, middle and last key works well for ordinary input orders.
-                let a = keys.[lo]
-                let b = keys.[lo + (hi - lo) / 2]
-                let c = keys.[hi]
+                let a = key lo
+                let b = key (lo + (hi - lo) / 2)
+                let c = key hi
                 let pivot =
                     if a < b then (if b < c then b elif a < c then c else a)
                     else          (if a < c then a elif b < c then c else b)
@@ -246,7 +211,7 @@ module internal BvhUtil =
                 let mutable gt = hi // keys.[gt+1 .. hi  ] are bigger than the pivot
                 let mutable i  = lo // keys.[lt   .. i-1 ] are equal to the pivot
                 while i <= gt do
-                    let v = keys.[i]
+                    let v = key i
                     if   v < pivot then swap i lt ; lt <- lt + 1 ; i <- i + 1
                     elif v > pivot then swap i gt ; gt <- gt - 1 // the swapped in key is still unseen
                     else                            i <- i + 1
@@ -261,19 +226,21 @@ module internal BvhUtil =
         // the permutation of item indices, reordered in place while building:
         let idx = Array.zeroCreate<int> n
         for i = 0 to n - 1 do
-            idx.[i] <- i
+            Arr.setIdx i i idx
         // scratch space for the box centers along the split axis of the current node, parallel to idx.
         // It is refilled for the range of each node, so that no per node array is needed:
         let keys = Array.zeroCreate<float> n
         // the count of nodes is known upfront, so the array is allocated at its exact size and filled in place:
         let nodes = Arr.zeroCreateUndef<BVHNode> (nodeCount n leafSize)
+        // the box of the item at position i of the permutation:
+        let inline boxAt i = Arr.getIdx (Arr.getIdx i idx) boxes
 
         let boxOf start count =
-            let first = boxes.[idx.[start]]
+            let first = boxAt start
             let mutable minX, minY, minZ = first.MinX, first.MinY, first.MinZ
             let mutable maxX, maxY, maxZ = first.MaxX, first.MaxY, first.MaxZ
             for i = start + 1 to start + count - 1 do
-                let b = boxes.[idx.[i]]
+                let b = boxAt i
                 minX <- min b.MinX minX
                 minY <- min b.MinY minY
                 minZ <- min b.MinZ minZ
@@ -287,13 +254,13 @@ module internal BvhUtil =
         let rec buildNode nodeIdx start count : int =
             if count <= leafSize then
                 let box = boxOf start count
-                nodes.[nodeIdx] <- { Box = box; LeftOrStart = start; RightChild = -1; Count = count }
+                Arr.setIdx nodeIdx { Box = box; LeftOrStart = start; RightChild = -1; Count = count } nodes
                 nodeIdx + 1
             else
                 // Collect the center ranges to choose the split axis. Long items can share a center
                 // along their longest axis, so box size is not a useful split guide.
                 // The bounds of this node are not collected here, they are the union of its two children.
-                let first = boxes.[idx.[start]]
+                let first = boxAt start
                 let mutable minX = (first.MinX + first.MaxX) * 0.5
                 let mutable minY = (first.MinY + first.MaxY) * 0.5
                 let mutable minZ = (first.MinZ + first.MaxZ) * 0.5
@@ -302,7 +269,7 @@ module internal BvhUtil =
                 let mutable maxZ = minZ
                 let last = start + count - 1
                 for i = start + 1 to last do
-                    let b = boxes.[idx.[i]]
+                    let b = boxAt i
                     let cx = (b.MinX + b.MaxX) * 0.5
                     let cy = (b.MinY + b.MaxY) * 0.5
                     let cz = (b.MinZ + b.MaxZ) * 0.5
@@ -319,16 +286,16 @@ module internal BvhUtil =
                 let sizeZ = maxZ - minZ
                 if sizeX >= sizeY && sizeX >= sizeZ then
                     for i = start to last do
-                        let ii = idx.[i]
-                        keys.[i] <- (boxes.[ii].MinX + boxes.[ii].MaxX) * 0.5
+                        let b = boxAt i
+                        Arr.setIdx i ((b.MinX + b.MaxX) * 0.5) keys
                 elif sizeY >= sizeZ then
                     for i = start to last do
-                        let ii = idx.[i]
-                        keys.[i] <- (boxes.[ii].MinY + boxes.[ii].MaxY) * 0.5
+                        let b = boxAt i
+                        Arr.setIdx i ((b.MinY + b.MaxY) * 0.5) keys
                 else
                     for i = start to last do
-                        let ii = idx.[i]
-                        keys.[i] <- (boxes.[ii].MinZ + boxes.[ii].MaxZ) * 0.5
+                        let b = boxAt i
+                        Arr.setIdx i ((b.MinZ + b.MaxZ) * 0.5) keys
                 let mid = count / 2
                 // Partition around the median, with a sort fallback only if selection exceeds its budget:
                 selectNth idx keys start last (start + mid)
@@ -336,11 +303,11 @@ module internal BvhUtil =
                 let right = buildNode left start mid
                 let free = buildNode right (start + mid) (count - mid)
                 // The union of the two finished children is cheaper than another pass over all items:
-                let l = nodes.[left].Box
-                let r = nodes.[right].Box
+                let l = (Arr.getIdx left nodes).Box
+                let r = (Arr.getIdx right nodes).Box
                 let bounds = BBox.createUnchecked(min l.MinX r.MinX, min l.MinY r.MinY, min l.MinZ r.MinZ,
                                                   max l.MaxX r.MaxX, max l.MaxY r.MaxY, max l.MaxZ r.MaxZ)
-                nodes.[nodeIdx] <- { Box = bounds; LeftOrStart = left; RightChild = right; Count = 0 }
+                Arr.setIdx nodeIdx { Box = bounds; LeftOrStart = left; RightChild = right; Count = 0 } nodes
                 free
 
         buildNode 0 0 n |> ignore
@@ -369,17 +336,17 @@ module internal BvhHeap =
         let values = ResizeArray<int>()
 
         let swap i j =
-            let k = keys.[i] in keys.[i] <- keys.[j] ; keys.[j] <- k
-            let v = values.[i] in values.[i] <- values.[j] ; values.[j] <- v
+            let k = ResizeArr.getIdx i keys in ResizeArr.setIdx i (ResizeArr.getIdx j keys) keys ; ResizeArr.setIdx j k keys
+            let v = ResizeArr.getIdx i values in ResizeArr.setIdx i (ResizeArr.getIdx j values) values ; ResizeArr.setIdx j v values
 
         /// The count of entries currently in the heap.
         member _.Count = keys.Count
 
         /// The smallest key in the heap. The heap must not be empty.
-        member _.TopKey = keys.[0]
+        member _.TopKey = ResizeArr.getIdx 0 keys
 
         /// The payload of the entry with the smallest key. The heap must not be empty.
-        member _.TopValue = values.[0]
+        member _.TopValue = ResizeArr.getIdx 0 values
 
         /// Adds an entry and sifts it up to its place.
         member _.Push (key: float, value: int) : unit =
@@ -389,7 +356,7 @@ module internal BvhHeap =
             let mutable go = true
             while go && i > 0 do
                 let parent = (i - 1) / 2
-                if keys.[parent] > keys.[i] then
+                if ResizeArr.getIdx parent keys > ResizeArr.getIdx i keys then
                     swap parent i
                     i <- parent
                 else
@@ -398,26 +365,25 @@ module internal BvhHeap =
         /// Removes the entry with the smallest key. The heap must not be empty.
         /// Read the entry with TopKey and TopValue first. Unlike returning it as a tuple, that does not allocate.
         member _.RemoveTop () : unit =
-            let last = keys.Count - 1
-            keys.[0] <- keys.[last]
-            values.[0] <- values.[last]
-            keys.RemoveAt last
-            values.RemoveAt last
-            // sift the moved up last entry down again:
+            let lastKey = ResizeArr.pop keys
+            let lastValue = ResizeArr.pop values
             let n = keys.Count
-            let mutable i = 0
-            let mutable go = true
-            while go do
-                let left = 2 * i + 1
-                let right = left + 1
-                let mutable smallest = i
-                if left  < n && keys.[left]  < keys.[smallest] then smallest <- left
-                if right < n && keys.[right] < keys.[smallest] then smallest <- right
-                if smallest = i then
-                    go <- false
-                else
-                    swap smallest i
-                    i <- smallest
+            if n > 0 then // move the last entry to the top and sift it down again:
+                ResizeArr.setIdx 0 lastKey keys
+                ResizeArr.setIdx 0 lastValue values
+                let mutable i = 0
+                let mutable go = true
+                while go do
+                    let left = 2 * i + 1
+                    let right = left + 1
+                    let mutable smallest = i
+                    if left  < n && ResizeArr.getIdx left  keys < ResizeArr.getIdx smallest keys then smallest <- left
+                    if right < n && ResizeArr.getIdx right keys < ResizeArr.getIdx smallest keys then smallest <- right
+                    if smallest = i then
+                        go <- false
+                    else
+                        swap smallest i
+                        i <- smallest
 
     /// Encodes an item index as the payload of a MinHeap entry.
     /// A best first traversal keeps pending tree nodes and pending items in one single heap, because
@@ -491,7 +457,7 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
         let leafSize = if leafSize < 1 then BVH<'T>.DefaultLeafSize else leafSize
         let boxes = Arr.zeroCreateUndef<BBox> items.Count
         for i = 0 to items.Count - 1 do
-            boxes.[i] <- getBox items.[i]
+            Arr.setIdx i (getBox (ResizeArr.getIdx i items)) boxes
         BVH<'T>.createWithBoxes (items, boxes, leafSize)
 
     /// <summary>Builds a BVH from the given sequence of items.</summary>

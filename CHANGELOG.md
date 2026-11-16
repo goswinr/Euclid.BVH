@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- On Fable JavaScript Release builds, tree building is about 2.2 times faster, the `...ByDistance` sequences about 2.9 times and the polyline self intersection about 2.4 times: their loops index arrays directly instead of calling the bounds checked `item` and `setItem` of fable-library, and the heap removes its last entry with `pop` instead of `splice`.
+  - Debug builds and .NET keep the bounds checks; .NET speed is unchanged.
 
 ## [0.3.0] - 2026-10-25
 ### Added
