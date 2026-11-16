@@ -46,7 +46,7 @@
   <ItemGroup>
     <PackageReference Update="FSharp.Core" Version="6.0.7" />
     <PackageReference Include="Euclid" Version="0.52.0" />
-    <PackageReference Include="Fable.Core" Version="4.5.0" Condition="$(DefineConstants.Contains('FABLE_COMPILER'))" />    <!-- needed by the Fable sources of the Euclid package -->
+    <PackageReference Include="Fable.Core" Version="5.0.0" Condition="$(DefineConstants.Contains('FABLE_COMPILER'))" />    <!-- needed by the Fable sources of the Euclid package -->
 
     <!-- build time only : -->
     <!-- SourceLink is built into the .NET 8+ SDK, no Microsoft.SourceLink.GitHub package needed -->

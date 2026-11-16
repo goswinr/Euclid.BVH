@@ -20,6 +20,7 @@ updates:
       - dependency-type: "all"
     ignore:
       - dependency-name: "FSharp.Core"
+      - dependency-name: "Fable.Core"
 
     cooldown:
       default-days: 7

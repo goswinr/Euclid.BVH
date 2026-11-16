@@ -3,6 +3,7 @@ namespace Euclid
 open System
 open Euclid
 open Euclid.EuclidErrors
+open System.Collections.Generic
 
 /// Shorthand for the OptionalAttribute on method arguments.
 type internal OPT = Runtime.InteropServices.OptionalAttribute
@@ -11,18 +12,109 @@ type internal OPT = Runtime.InteropServices.OptionalAttribute
 type internal DEF = Runtime.InteropServices.DefaultParameterValueAttribute
 
 
-module internal Array =
+module internal Arr =
 
     /// Just Array.zeroCreate<'T> in .NET, but when `UNCHECKED` is defined and used in Fable, it emits `new Array(len)`
     /// without initializing the items to their default value.
     /// Values are `undefined` in JavaScript
     /// Not safe on numbers, Fable emits TypedArrays for numeric arrays.
     let inline zeroCreateUndef<'T> (len:int) : 'T [] = //
-        #if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
             Fable.Core.JsInterop.emitJsExpr (len) "new Array($0)"
         #else
             Array.zeroCreate<'T> len
         #endif
+
+    let inline getIdx (idx:int) (arr: 'T[]) : 'T=
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsExpr (arr,idx) "$0[$1]"
+        #else
+            arr.[idx]
+        #endif
+
+    let inline setIdx (idx:int) (value:'T) (arr: 'T[]) : unit =
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsStatement (arr,idx,value) "$0[$1] = $2"
+        #else
+            arr.[idx] <- value
+        #endif
+
+    let inline len (arr: 'T[]) : int =
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsExpr (arr) "$0.length" // avoid call to count() in fable lib
+        #else
+            arr.Length
+        #endif
+
+module internal ILst =
+
+    let inline getIdx (idx:int) (iLst: IList<'T>) : 'T=
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsExpr (iLst,idx) "$0[$1]"
+        #else
+            iLst.[idx]
+        #endif
+
+    let inline setIdx (idx:int) (value:'T) (iLst: IList<'T>) : unit =
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsStatement (iLst,idx,value) "$0[$1] = $2"
+        #else
+            iLst.[idx] <- value
+        #endif
+
+    let inline len (iLst: IList<'T>) : int =
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsExpr (iLst) "$0.length" // avoid call to count() in fable lib
+        #else
+            iLst.Count
+        #endif
+
+module internal ResizeArr =
+
+    let inline getIdx (idx:int) (resizeArray: ResizeArray<'T>) : 'T=
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsExpr (resizeArray,idx) "$0[$1]"
+        #else
+            resizeArray.[idx]
+        #endif
+
+    let inline setIdx (idx:int) (value:'T) (resizeArray: ResizeArray<'T>) : unit =
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsStatement (resizeArray,idx,value) "$0[$1] = $2"
+        #else
+            resizeArray.[idx] <- value
+        #endif
+
+    let inline len (resizeArray: ResizeArray<'T>) : int =
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsExpr (resizeArray) "$0.length" // avoid call to count() in fable lib
+        #else
+            resizeArray.Count
+        #endif
+
+    let inline lastIdx  (resizeArray: ResizeArray<'T>) : int =
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsExpr (resizeArray) "$0.length - 1" // avoid call to count() in fable lib
+        #else
+            resizeArray.Count - 1
+        #endif
+
+    let inline clear (arr: ResizeArray<'T>) : unit =
+        #if RELEASE && (FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT)
+            Fable.Core.JsInterop.emitJsStatement arr "$0.length = 0"
+        #else
+            arr.Clear()
+        #endif
+
+    let inline pop (arr: ResizeArray<'T>) : 'T =
+        #if FABLE_COMPILER_JAVASCRIPT || FABLE_COMPILER_TYPESCRIPT
+            Fable.Core.JsInterop.emitJsExpr (arr) "$0.pop()"
+        #else
+            let v = arr.[arr.Count - 1]
+            arr.RemoveAt(arr.Count - 1)
+            v
+        #endif
+
 
 /// A result of a closest pair search in a BVH tree.
 /// Holds the indices of the two items (into the input array) and the distance between them.
@@ -174,7 +266,7 @@ module internal BvhUtil =
         // It is refilled for the range of each node, so that no per node array is needed:
         let keys = Array.zeroCreate<float> n
         // the count of nodes is known upfront, so the array is allocated at its exact size and filled in place:
-        let nodes = Array.zeroCreateUndef<BVHNode> (nodeCount n leafSize)
+        let nodes = Arr.zeroCreateUndef<BVHNode> (nodeCount n leafSize)
 
         let boxOf start count =
             let first = boxes.[idx.[start]]
@@ -397,7 +489,7 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
         if isNull items then fail "BVH.create: items ResizeArray is null."
         if items.Count = 0 then fail "BVH.create: items ResizeArray is empty."
         let leafSize = if leafSize < 1 then BVH<'T>.DefaultLeafSize else leafSize
-        let boxes = Array.zeroCreateUndef<BBox> items.Count
+        let boxes = Arr.zeroCreateUndef<BBox> items.Count
         for i = 0 to items.Count - 1 do
             boxes.[i] <- getBox items.[i]
         BVH<'T>.createWithBoxes (items, boxes, leafSize)

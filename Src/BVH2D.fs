@@ -59,7 +59,7 @@ module internal BvhUtil2D =
         // It is refilled for the range of each node, so that no per node array is needed:
         let keys = Array.zeroCreate<float> n
         // the count of nodes is known upfront, so the array is allocated at its exact size and filled in place:
-        let nodes = Array.zeroCreateUndef<BVHNode2D> (BvhUtil.nodeCount n leafSize)
+        let nodes = Arr.zeroCreateUndef<BVHNode2D> (BvhUtil.nodeCount n leafSize)
 
         let rectOf start count =
             let first = rects.[idx.[start]]
@@ -201,7 +201,7 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
         if isNull items then fail "BVH2D.create: items ResizeArray is null."
         if items.Count = 0 then fail "BVH2D.create: items ResizeArray is empty."
         let leafSize = if leafSize < 1 then BVH2D<'T>.DefaultLeafSize else leafSize
-        let rects = Array.zeroCreateUndef<BRect> items.Count
+        let rects = Arr.zeroCreateUndef<BRect> items.Count
         for i = 0 to items.Count - 1 do
             rects.[i] <- getRect items.[i]
         BVH2D<'T>.createWithRects (items, rects, leafSize)
