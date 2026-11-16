@@ -474,7 +474,7 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// Finds the item closest to the query geometry among the items with an index bigger than minIdx,
     /// except skipIdx, if its squared distance is smaller than sqBound.
     /// Returns its index and squared distance, or -1 as index if there is no such item.
-    member private _.ClosestItemSq (queryBox: BBox, sqDistanceTo: 'T -> float, minIdx: int, skipIdx: int, sqBound: float) : struct (int * float) =
+    member private _.ClosestItemSq (queryBox: BBox, distanceToSq: 'T -> float, minIdx: int, skipIdx: int, sqBound: float) : struct (int * float) =
         let mutable bestSqDist = sqBound
         let mutable bestIdx = -1
         // sqNodeDist is the squared distance from the query box to the box of the node, the caller has it already.
@@ -486,7 +486,7 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         let ii = itemIndices.[i]
                         // the box distance is a lower bound of the exact distance, so it is checked first:
                         if ii > minIdx && ii <> skipIdx && BvhUtil.sqBoxDist queryBox boxes.[ii] < bestSqDist then
-                            let sqD = sqDistanceTo items.[ii]
+                            let sqD = distanceToSq items.[ii]
                             if sqD < bestSqDist then
                                 bestSqDist <- sqD
                                 bestIdx <- ii
@@ -541,16 +541,16 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// The distance to an item is measured to the exact geometry via the given squared distance
     /// function, while the query box and the item boxes provide lower bounds for
     /// branch and bound pruning: subtrees and items whose bounding box is farther away from the query box
-    /// than the best distance found so far are skipped. Items for which sqDistanceTo returns NaN are ignored.</summary>
+    /// than the best distance found so far are skipped. Items for which distanceToSq returns NaN are ignored.</summary>
     /// <param name="queryBox">The axis aligned bounding box of the query geometry.
-    ///  It must fully contain the query geometry that sqDistanceTo measures from,
+    ///  It must fully contain the query geometry that distanceToSq measures from,
     ///  otherwise subtrees may be pruned incorrectly.</param>
-    /// <param name="sqDistanceTo">Returns the exact squared distance from the query geometry to an item.</param>
+    /// <param name="distanceToSq">Returns the exact squared distance from the query geometry to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search.
     ///  Use this to find the nearest neighbor of an item that is part of the tree itself. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest item in the input array and the distance to it.</returns>
-    member bvh.ClosestItem (queryBox: BBox, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
-        let struct (idx, sqD) = bvh.ClosestItemSq (queryBox, sqDistanceTo, -1, skipIdx, Double.PositiveInfinity)
+    member bvh.ClosestItem (queryBox: BBox, distanceToSq: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
+        let struct (idx, sqD) = bvh.ClosestItemSq (queryBox, distanceToSq, -1, skipIdx, Double.PositiveInfinity)
         if idx = -1 then fail "BVH.ClosestItem: no item found. The tree has only the skipped item, or all distances are infinite or NaN."
         idx, sqrt sqD
 
@@ -568,12 +568,12 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// The distance to an item is measured to the exact geometry via the given squared distance
     /// function, while the item bounding boxes provide lower bounds for branch and bound pruning:
     /// subtrees whose bounding box is farther away from the point
-    /// than the best distance found so far are skipped. Items for which sqDistanceTo returns NaN are ignored.</summary>
-    /// <param name="pt">The 3D point to search the closest item for.</param>
-    /// <param name="sqDistanceTo">Returns the exact squared distance from the query point to an item.</param>
+    /// than the best distance found so far are skipped. Items for which distanceToSq returns NaN are ignored.</summary>
+    /// <param name="pnt">The 3D point to search the closest item for.</param>
+    /// <param name="distanceToSq">Returns the exact squared distance from the query point to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest item in the input array and the distance to it.</returns>
-    member _.ClosestItem (pt: Pnt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
+    member _.ClosestItem (pnt: Pnt, distanceToSq: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.PositiveInfinity
         let mutable bestIdx = -1
         let rec search nodeIdx sqNodeDist =
@@ -585,7 +585,7 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                         // Unlike in ClosestItemSq, the item box is not checked before the exact distance here:
                         // the distance from a point is usually cheap, and on Fable the extra box access cost more than it saved.
                         if ii <> skipIdx then
-                            let sqD = sqDistanceTo items.[ii]
+                            let sqD = distanceToSq items.[ii]
                             if sqD < bestSqDist then
                                 bestSqDist <- sqD
                                 bestIdx <- ii
@@ -593,24 +593,24 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                     // visit the closer child first for better pruning:
                     let left = node.LeftOrStart
                     let right = node.RightChild
-                    let dLeft = BvhUtil.sqBoxPntDist pt nodes.[left].Box
-                    let dRight = BvhUtil.sqBoxPntDist pt nodes.[right].Box
+                    let dLeft = BvhUtil.sqBoxPntDist pnt nodes.[left].Box
+                    let dRight = BvhUtil.sqBoxPntDist pnt nodes.[right].Box
                     if dLeft <= dRight then
                         search left dLeft
                         search right dRight
                     else
                         search right dRight
                         search left dLeft
-        search root (BvhUtil.sqBoxPntDist pt nodes.[root].Box)
+        search root (BvhUtil.sqBoxPntDist pnt nodes.[root].Box)
         if bestIdx = -1 then fail "BVH.ClosestItem: no item found. The tree has only the skipped item, or all distances are infinite or NaN."
         bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the item in the tree whose bounding box is closest to the given query point.
     /// The distance between a point and a box is 0.0 if the point is inside or on the box.</summary>
-    /// <param name="pt">The 3D point to search the closest item box for.</param>
+    /// <param name="pnt">The 3D point to search the closest item box for.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the item with the closest bounding box and the distance from the point to that box.</returns>
-    member _.ClosestBox (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
+    member _.ClosestBox (pnt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.PositiveInfinity
         let mutable bestIdx = -1
         let rec search nodeIdx sqNodeDist =
@@ -620,32 +620,32 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
                     for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
                         let ii = itemIndices.[i]
                         if ii <> skipIdx then
-                            let sqD = BvhUtil.sqBoxPntDist pt boxes.[ii]
+                            let sqD = BvhUtil.sqBoxPntDist pnt boxes.[ii]
                             if sqD < bestSqDist then
                                 bestSqDist <- sqD
                                 bestIdx <- ii
                 else
                     let left = node.LeftOrStart
                     let right = node.RightChild
-                    let dLeft = BvhUtil.sqBoxPntDist pt nodes.[left].Box
-                    let dRight = BvhUtil.sqBoxPntDist pt nodes.[right].Box
+                    let dLeft = BvhUtil.sqBoxPntDist pnt nodes.[left].Box
+                    let dRight = BvhUtil.sqBoxPntDist pnt nodes.[right].Box
                     if dLeft <= dRight then
                         search left dLeft
                         search right dRight
                     else
                         search right dRight
                         search left dLeft
-        search root (BvhUtil.sqBoxPntDist pt nodes.[root].Box)
+        search root (BvhUtil.sqBoxPntDist pnt nodes.[root].Box)
         if bestIdx = -1 then fail "BVH.ClosestBox: no item found. Tree has only the skipped item?"
         bestIdx, sqrt bestSqDist
 
     /// <summary>Finds the pair of closest items among all items in the tree, measured with
     /// the given exact squared distance function. For every item the closest item after it in the input
     /// is searched with branch and bound pruning on the bounding boxes, bounded by the closest pair found so far.
-    /// Pairs for which sqDistance returns NaN are ignored.</summary>
-    /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
+    /// Pairs for which distanceSq returns NaN are ignored.</summary>
+    /// <param name="distanceSq">Returns the exact squared distance between two items.</param>
     /// <returns>A BVHPair with the indices of the two closest items and their distance.</returns>
-    member bvh.ClosestPair (sqDistance: 'T -> 'T -> float) : BVHPair =
+    member bvh.ClosestPair (distanceSq: 'T -> 'T -> float) : BVHPair =
         if items.Count < 2 then fail "BVH.ClosestPair: needs at least two items."
         // The closest pair found so far bounds the search from the next item, so most searches end early.
         // Item i only searches the items after it: a pair with an earlier item j was either measured by
@@ -655,7 +655,7 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
         let mutable bestB = -1
         let mutable i = 0
         while i < items.Count - 1 && bestSqDist > 0.0 do // nothing can be closer than 0.0
-            let struct (j, sqD) = bvh.ClosestItemSq (boxes.[i], sqDistance items.[i], i, -1, bestSqDist)
+            let struct (j, sqD) = bvh.ClosestItemSq (boxes.[i], distanceSq items.[i], i, -1, bestSqDist)
             if j <> -1 then
                 bestSqDist <- sqD
                 bestA <- i
@@ -685,14 +685,14 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
         { IdxA = bestA; IdxB = bestB; Distance = sqrt bestSqDist }
 
     /// <summary>For every item in the tree finds its nearest neighbor item, measured with
-    /// the given exact squared distance function. Pairs for which sqDistance returns NaN are ignored.</summary>
-    /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
+    /// the given exact squared distance function. Pairs for which distanceSq returns NaN are ignored.</summary>
+    /// <param name="distanceSq">Returns the exact squared distance between two items.</param>
     /// <returns>An array of BVHPair. The entry at index i holds i as IdxA, the index of the
     /// nearest neighbor of item i as IdxB and the distance between them.</returns>
-    member bvh.NearestNeighbors (sqDistance: 'T -> 'T -> float) : BVHPair[] =
+    member bvh.NearestNeighbors (distanceSq: 'T -> 'T -> float) : BVHPair[] =
         if items.Count < 2 then fail "BVH.NearestNeighbors: needs at least two items."
         Array.init items.Count (fun i ->
-            let struct (j, sqD) = bvh.ClosestItemSq (boxes.[i], sqDistance items.[i], -1, i, Double.PositiveInfinity)
+            let struct (j, sqD) = bvh.ClosestItemSq (boxes.[i], distanceSq items.[i], -1, i, Double.PositiveInfinity)
             if j = -1 then fail $"BVH.NearestNeighbors: no neighbor found for item {i}. All its distances are infinite or NaN."
             { IdxA = i; IdxB = j; Distance = sqrt sqD })
 
@@ -752,13 +752,13 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// <summary>Finds all pairs of items that are closer to each other than the given maximum distance,
     /// measured with the given exact squared distance function.
     /// Uses a dual tree traversal: pairs of subtrees whose bounding boxes are farther apart
-    /// than the maximum distance are skipped entirely, and sqDistance is only called for pairs of items
+    /// than the maximum distance are skipped entirely, and distanceSq is only called for pairs of items
     /// whose bounding boxes are within the maximum distance.</summary>
     /// <param name="maxDistance">The maximum distance between two items for the pair to be reported.</param>
-    /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
+    /// <param name="distanceSq">Returns the exact squared distance between two items.</param>
     /// <returns>A ResizeArray of BVHPair, each with IdxA less than IdxB. The order of the pairs is not defined.</returns>
-    member bvh.ClosePairs (maxDistance: float, sqDistance: 'T -> 'T -> float) : ResizeArray<BVHPair> =
-        bvh.ClosePairsByIdx (maxDistance, fun i j _ -> sqDistance items.[i] items.[j])
+    member bvh.ClosePairs (maxDistance: float, distanceSq: 'T -> 'T -> float) : ResizeArray<BVHPair> =
+        bvh.ClosePairsByIdx (maxDistance, fun i j _ -> distanceSq items.[i] items.[j])
 
     /// <summary>Finds all pairs of items whose bounding boxes are closer to each other
     /// than the given maximum distance. The distance between two boxes is 0.0 if they overlap or touch,
@@ -794,20 +794,20 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// <summary>Finds the indices of all items whose bounding box is closer to the given
     /// 3D point than the given tolerance.
     /// The distance between a point and a box is 0.0 if the point is inside or on the box.</summary>
-    /// <param name="pt">The 3D point to search around.</param>
+    /// <param name="pnt">The 3D point to search around.</param>
     /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found items in the input array.</returns>
-    member _.ItemsNearPoint (pt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+    member _.ItemsNearPoint (pnt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
         if not (tolerance >= 0.0) then fail $"BVH.ItemsNearPoint: tolerance {tolerance} must not be negative or NaN."
         let sqTol = tolerance * tolerance
         let result = ResizeArray<int>()
         let rec search nodeIdx =
             let node = nodes.[nodeIdx]
-            if BvhUtil.sqBoxPntDist pt node.Box <= sqTol then
+            if BvhUtil.sqBoxPntDist pnt node.Box <= sqTol then
                 if node.Count > 0 then
                     for i = node.LeftOrStart to node.LeftOrStart + node.Count - 1 do
                         let ii = itemIndices.[i]
-                        if BvhUtil.sqBoxPntDist pt boxes.[ii] <= sqTol then
+                        if BvhUtil.sqBoxPntDist pnt boxes.[ii] <= sqTol then
                             result.Add ii
                 else
                     search node.LeftOrStart
@@ -873,44 +873,44 @@ type BVH<'T> private (items: Collections.Generic.IList<'T>, boxes: BBox[], itemI
     /// The tree is walked best first, with the box distances as lower bounds: a min heap holds the
     /// subtrees seen so far keyed by the distance of their bounding box, and the items of an expanded
     /// leaf keyed by their exact distance. So only the part of the tree that is closer than the last
-    /// item taken is ever visited, and sqDistanceTo is called only for the items in those leaves.
-    /// Items for which sqDistanceTo returns NaN are left out.
+    /// item taken is ever visited, and distanceToSq is called only for the items in those leaves.
+    /// Items for which distanceToSq returns NaN are left out.
     /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
     /// <param name="queryBox">The axis aligned bounding box of the query geometry.
-    ///  It must fully contain the query geometry that sqDistanceTo measures from,
+    ///  It must fully contain the query geometry that distanceToSq measures from,
     ///  otherwise the enumeration order is wrong.</param>
-    /// <param name="sqDistanceTo">Returns the exact squared distance from the query geometry to an item.</param>
+    /// <param name="distanceToSq">Returns the exact squared distance from the query geometry to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
     /// <returns>A lazy sequence of the index of each item in the input array and its exact distance to the
     /// query geometry, in order of increasing distance.</returns>
-    member bvh.ItemsByDistance (queryBox: BBox, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
-        bvh.ByDistance ((fun b -> BvhUtil.sqBoxDist queryBox b), (fun ii -> sqDistanceTo items.[ii]), skipIdx)
+    member bvh.ItemsByDistance (queryBox: BBox, distanceToSq: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        bvh.ByDistance ((fun b -> BvhUtil.sqBoxDist queryBox b), (fun ii -> distanceToSq items.[ii]), skipIdx)
 
     /// <summary>Lazily enumerates all items in the tree ordered by the distance of their bounding box
     /// to the given 3D point, from the closest to the farthest.
     /// The distance from a point to a box is 0.0 if the point is inside or on the box.
     /// The tree is walked best first, so only the part of it that is closer than the last item taken
     /// is ever visited. The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
-    /// <param name="pt">The 3D point to measure the distances from.</param>
+    /// <param name="pnt">The 3D point to measure the distances from.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
     /// <returns>A lazy sequence of the index of each item in the input array and the distance from the
     /// point to its bounding box, in order of increasing distance.</returns>
-    member bvh.BoxesByDistance (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
-        bvh.ByDistance ((fun b -> BvhUtil.sqBoxPntDist pt b), (fun ii -> BvhUtil.sqBoxPntDist pt boxes.[ii]), skipIdx)
+    member bvh.BoxesByDistance (pnt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        bvh.ByDistance ((fun b -> BvhUtil.sqBoxPntDist pnt b), (fun ii -> BvhUtil.sqBoxPntDist pnt boxes.[ii]), skipIdx)
 
     /// <summary>Lazily enumerates all items in the tree ordered by their exact distance to the given
     /// 3D point, from the closest to the farthest.
     /// The tree is walked best first, with the box distances as lower bounds, so only the part of it
-    /// that is closer than the last item taken is ever visited, and sqDistanceTo is called only for
-    /// the items in the leaves that were expanded. Items for which sqDistanceTo returns NaN are left out.
+    /// that is closer than the last item taken is ever visited, and distanceToSq is called only for
+    /// the items in the leaves that were expanded. Items for which distanceToSq returns NaN are left out.
     /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
-    /// <param name="pt">The 3D point to measure the distances from.</param>
-    /// <param name="sqDistanceTo">Returns the exact squared distance from the query point to an item.</param>
+    /// <param name="pnt">The 3D point to measure the distances from.</param>
+    /// <param name="distanceToSq">Returns the exact squared distance from the query point to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
     /// <returns>A lazy sequence of the index of each item in the input array and its exact distance to the
     /// point, in order of increasing distance.</returns>
-    member bvh.ItemsByDistance (pt: Pnt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
-        bvh.ByDistance ((fun b -> BvhUtil.sqBoxPntDist pt b), (fun ii -> sqDistanceTo items.[ii]), skipIdx)
+    member bvh.ItemsByDistance (pnt: Pnt, distanceToSq: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        bvh.ByDistance ((fun b -> BvhUtil.sqBoxPntDist pnt b), (fun ii -> distanceToSq items.[ii]), skipIdx)
 
 /// Provides static functions to create BVH trees without specifying the generic type argument.
 [<AbstractClass; Sealed>]

@@ -33,7 +33,7 @@ let tests =
     testList ("Build", [
         test ("3D build preserves every item on structured input", fun _ ->
             for name, coordinates in structuredInputs () do
-                let boxes = coordinates |> Array.map (fun x -> BBox.createFromCenter (Pnt (x, 0., 0.), 0., 0., 0.))
+                let boxes = coordinates |> Array.map (fun x -> BBox.createCentered 0. 0. 0. (Pnt (x, 0., 0.)))
                 for leafSize in [ 1; 7 ] do
                     let tree = BVH.createFromBoxes (boxes, leafSize)
                     tree.BoxesByDistance (Pnt (-1., 0., 0.)) |> Seq.toArray |> checkEnumeration name coordinates
@@ -72,7 +72,7 @@ let tests =
                 let mutable calls = 0
                 let idx, distance = tree.ClosestItem (query, fun line ->
                     calls <- calls + 1
-                    line.SqDistanceToPnt query)
+                    line.DistanceToPntSq query)
                 assertThat offsets.[idx] (tag $"axis {axis}: nearest line" >> isEqualTo (float (count / 2)))
                 assertThat distance (tag $"axis {axis}: nearest distance" >> isCloseTo 0.25)
                 // Count exact geometry tests instead of relying on machine-dependent timings.
@@ -93,7 +93,7 @@ let tests =
                 let mutable calls = 0
                 let idx, distance = tree.ClosestItem (query, fun line ->
                     calls <- calls + 1
-                    line.SqDistanceToPt query)
+                    line.DistanceToPtSq query)
                 assertThat offsets.[idx] (tag $"axis {axis}: nearest line" >> isEqualTo (float (count / 2)))
                 assertThat distance (tag $"axis {axis}: nearest distance" >> isCloseTo 0.25)
                 assertThat (calls <= 32) (tag $"axis {axis}: should prune most of the {count} lines, tested {calls}" >> isTrue)

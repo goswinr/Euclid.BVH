@@ -63,14 +63,13 @@ type Method = { Name: string; Prepare: int -> Func<bool> }
 
 let methods : Method[] = [|
     { Name = "tryFindSelfIntersection"; Prepare = fun n -> let pl = ring n in Func<bool>(fun () -> (Polyline2D.tryFindSelfIntersection pl).IsSome) }
-    { Name = "...WithBRect"; Prepare = fun n -> let pl = ring n in Func<bool>(fun () -> (Polyline2D.tryFindSelfIntersectionWithBRect pl).IsSome) }
     { Name = "...WithBvh"; Prepare = fun n -> let pl = ring n in Func<bool>(fun () -> (Polyline2D.tryFindSelfIntersectionWithBvh pl).IsSome) }
-    { Name = "brute force"; Prepare = fun n -> let pl = ring3D n in Func<bool>(fun () -> (tryFindSelfIntersection3D pl).IsSome) }
+    { Name = "tryFindSelfIntersection"; Prepare = fun n -> let pl = ring3D n in Func<bool>(fun () -> (Polyline3D.tryFindSelfIntersection pl).IsSome) }
     { Name = "...WithBvh"; Prepare = fun n -> let pl = ring3D n in Func<bool>(fun () -> (Polyline3D.tryFindSelfIntersectionWithBvh pl).IsSome) } |]
 
 /// The tables to print: a title, and the indices of their methods.
 /// The first method of a table is the one the ratios refer to.
-let tables = [| "Polyline2D", [| 0; 1; 2 |]; "Polyline3D", [| 3; 4 |] |]
+let tables = [| "Polyline2D", [| 0; 1 |]; "Polyline3D", [| 2; 3 |] |]
 
 /// Measures all methods in this process, for each point count one method after the other.
 /// Returns the times indexed by method, then by point count.

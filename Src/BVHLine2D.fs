@@ -9,7 +9,7 @@ type LinePair2D = BVHPair
 
 /// <summary>A static Bounding Volume Hierarchy (BVH) over 2D lines built from Euclid bounding rectangles (BRect).
 /// A thin wrapper around the generic BVH2D of Line2D that measures distances between
-/// the exact line segments via XLine2D.getSqDistance.
+/// the exact line segments via XLine2D.distanceSq.
 /// The tree is built once from an array of Line2D and is then immutable.
 /// It is well suited to unevenly distributed input because the tree adapts to the actual
 /// bounding rectangles of the lines instead of subdividing space uniformly (as a quadtree or grid would).
@@ -19,7 +19,7 @@ type BVHLine2D private (bvh: BVH2D<Line2D>) =
 
     /// The exact squared distance between two finite 2D lines.
     static let sqDist (a: Line2D) (b: Line2D) : float =
-        XLine2D.getSqDistance (a, b)
+        XLine2D.distanceSq a b
 
     /// The default maximum amount of lines per leaf node.
     static member val DefaultLeafSize = 4 with get
@@ -64,7 +64,7 @@ type BVHLine2D private (bvh: BVH2D<Line2D>) =
     /// <param name="skipIdx">An index into the input lines array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest line in the input array and the distance from the point to it.</returns>
     member _.ClosestLine (pt: Pt, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
-        bvh.ClosestItem (pt, (fun (ln: Line2D) -> ln.SqDistanceToPt pt), skipIdx)
+        bvh.ClosestItem (pt, (fun (ln: Line2D) -> ln.DistanceToPtSq pt), skipIdx)
 
     /// <summary>Finds the point on any line in the tree that is closest to the given 2D point.</summary>
     /// <param name="pt">The 2D point to search the closest point for.</param>
@@ -136,4 +136,4 @@ type BVHLine2D private (bvh: BVH2D<Line2D>) =
     /// <returns>A lazy sequence of the index of each line in the input array and its distance to the
     /// point, in order of increasing distance.</returns>
     member _.LinesByDistance (pt: Pt, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
-        bvh.ItemsByDistance (pt, (fun (ln: Line2D) -> ln.SqDistanceToPt pt), skipIdx)
+        bvh.ItemsByDistance (pt, (fun (ln: Line2D) -> ln.DistanceToPtSq pt), skipIdx)

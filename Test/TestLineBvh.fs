@@ -26,7 +26,7 @@ let private randomLines (rand: Random) (count: int) : Line3D[] =
         Line3D (cx, cy, cz, cx + dx, cy + dy, cz + dz))
 
 /// Brute force distance between two lines.
-let private dist (a: Line3D) (b: Line3D) = sqrt (XLine3D.getSqDistance (a, b))
+let private dist (a: Line3D) (b: Line3D) = sqrt (XLine3D.distanceSq a b)
 
 /// The squared distance between two axis aligned bounding boxes, 0.0 if they overlap.
 let private sqBoxDist (a: BBox) (b: BBox) : float =
@@ -212,7 +212,7 @@ let tests =
             let mutable bestD = Double.MaxValue
             let mutable bestI = -1
             for j = 0 to lines.Length - 1 do
-                let dj = sqrt (lines.[j].SqDistanceToPnt pt)
+                let dj = sqrt (lines.[j].DistanceToPntSq pt)
                 if dj < bestD then
                     bestD <- dj
                     bestI <- j
@@ -240,7 +240,7 @@ let tests =
             let cp = bvh.ClosestPoint pt
             let mutable bestD = Double.MaxValue
             for l in lines do
-                bestD <- min bestD (sqrt (l.SqDistanceToPnt pt))
+                bestD <- min bestD (sqrt (l.DistanceToPntSq pt))
             assertThat (cp.DistanceTo pt) (tag "closest point distance should match brute force" >> isCloseTo bestD)
         )
 
@@ -292,7 +292,7 @@ let tests =
             let pt = Pnt (50., 50., 10.)
             let found = bvh.LinesByDistance pt |> Seq.toArray
             assertThat found.Length (tag "every line should be enumerated" >> isEqualTo lines.Length)
-            let brute = lines |> Array.map (fun l -> sqrt (l.SqDistanceToPnt pt)) |> Array.sort
+            let brute = lines |> Array.map (fun l -> sqrt (l.DistanceToPntSq pt)) |> Array.sort
             for i = 0 to found.Length - 1 do
                 assertThat (snd found.[i]) (tag $"distance to point at position {i}" >> isCloseTo brute.[i])
             // the first entry must agree with the branch and bound ClosestLine query:

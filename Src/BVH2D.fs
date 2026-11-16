@@ -222,7 +222,7 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// Finds the item closest to the query geometry among the items with an index bigger than minIdx,
     /// except skipIdx, if its squared distance is smaller than sqBound.
     /// Returns its index and squared distance, or -1 as index if there is no such item.
-    member private _.ClosestItemSq (queryRect: BRect, sqDistanceTo: 'T -> float, minIdx: int, skipIdx: int, sqBound: float) : struct (int * float) =
+    member private _.ClosestItemSq (queryRect: BRect, distanceToSq: 'T -> float, minIdx: int, skipIdx: int, sqBound: float) : struct (int * float) =
         let mutable bestSqDist = sqBound
         let mutable bestIdx = -1
         // sqNodeDist is the squared distance from the query rectangle to the rectangle of the node, the caller has it already.
@@ -234,7 +234,7 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
                         let ii = itemIndices.[i]
                         // the rectangle distance is a lower bound of the exact distance, so it is checked first:
                         if ii > minIdx && ii <> skipIdx && BvhUtil2D.sqRectDist queryRect rects.[ii] < bestSqDist then
-                            let sqD = sqDistanceTo items.[ii]
+                            let sqD = distanceToSq items.[ii]
                             if sqD < bestSqDist then
                                 bestSqDist <- sqD
                                 bestIdx <- ii
@@ -289,16 +289,16 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// The distance to an item is measured to the exact geometry via the given squared distance
     /// function, while the query rectangle and the item rectangles provide lower bounds for
     /// branch and bound pruning: subtrees and items whose bounding rectangle is farther away from the query
-    /// rectangle than the best distance found so far are skipped. Items for which sqDistanceTo returns NaN are ignored.</summary>
+    /// rectangle than the best distance found so far are skipped. Items for which distanceToSq returns NaN are ignored.</summary>
     /// <param name="queryRect">The axis aligned bounding rectangle of the query geometry.
-    ///  It must fully contain the query geometry that sqDistanceTo measures from,
+    ///  It must fully contain the query geometry that distanceToSq measures from,
     ///  otherwise subtrees may be pruned incorrectly.</param>
-    /// <param name="sqDistanceTo">Returns the exact squared distance from the query geometry to an item.</param>
+    /// <param name="distanceToSq">Returns the exact squared distance from the query geometry to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search.
     ///  Use this to find the nearest neighbor of an item that is part of the tree itself. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest item in the input array and the distance to it.</returns>
-    member bvh.ClosestItem (queryRect: BRect, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
-        let struct (idx, sqD) = bvh.ClosestItemSq (queryRect, sqDistanceTo, -1, skipIdx, Double.PositiveInfinity)
+    member bvh.ClosestItem (queryRect: BRect, distanceToSq: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
+        let struct (idx, sqD) = bvh.ClosestItemSq (queryRect, distanceToSq, -1, skipIdx, Double.PositiveInfinity)
         if idx = -1 then fail "BVH2D.ClosestItem: no item found. The tree has only the skipped item, or all distances are infinite or NaN."
         idx, sqrt sqD
 
@@ -316,12 +316,12 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// The distance to an item is measured to the exact geometry via the given squared distance
     /// function, while the item bounding rectangles provide lower bounds for branch and bound pruning:
     /// subtrees whose bounding rectangle is farther away from the point
-    /// than the best distance found so far are skipped. Items for which sqDistanceTo returns NaN are ignored.</summary>
+    /// than the best distance found so far are skipped. Items for which distanceToSq returns NaN are ignored.</summary>
     /// <param name="pt">The 2D point to search the closest item for.</param>
-    /// <param name="sqDistanceTo">Returns the exact squared distance from the query point to an item.</param>
+    /// <param name="distanceToSq">Returns the exact squared distance from the query point to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest item in the input array and the distance to it.</returns>
-    member _.ClosestItem (pt: Pt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
+    member _.ClosestItem (pt: Pt, distanceToSq: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
         let mutable bestSqDist = Double.PositiveInfinity
         let mutable bestIdx = -1
         let rec search nodeIdx sqNodeDist =
@@ -333,7 +333,7 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
                         // Unlike in ClosestItemSq, the item rectangle is not checked before the exact distance here:
                         // the distance from a point is usually cheap, and on Fable the extra rectangle access cost more than it saved.
                         if ii <> skipIdx then
-                            let sqD = sqDistanceTo items.[ii]
+                            let sqD = distanceToSq items.[ii]
                             if sqD < bestSqDist then
                                 bestSqDist <- sqD
                                 bestIdx <- ii
@@ -390,10 +390,10 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// <summary>Finds the pair of closest items among all items in the tree, measured with
     /// the given exact squared distance function. For every item the closest item after it in the input
     /// is searched with branch and bound pruning on the bounding rectangles, bounded by the closest pair found so far.
-    /// Pairs for which sqDistance returns NaN are ignored.</summary>
-    /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
+    /// Pairs for which distanceSq returns NaN are ignored.</summary>
+    /// <param name="distanceSq">Returns the exact squared distance between two items.</param>
     /// <returns>A BVHPair with the indices of the two closest items and their distance.</returns>
-    member bvh.ClosestPair (sqDistance: 'T -> 'T -> float) : BVHPair =
+    member bvh.ClosestPair (distanceSq: 'T -> 'T -> float) : BVHPair =
         if items.Count < 2 then fail "BVH2D.ClosestPair: needs at least two items."
         // The closest pair found so far bounds the search from the next item, so most searches end early.
         // Item i only searches the items after it: a pair with an earlier item j was either measured by
@@ -403,7 +403,7 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
         let mutable bestB = -1
         let mutable i = 0
         while i < items.Count - 1 && bestSqDist > 0.0 do // nothing can be closer than 0.0
-            let struct (j, sqD) = bvh.ClosestItemSq (rects.[i], sqDistance items.[i], i, -1, bestSqDist)
+            let struct (j, sqD) = bvh.ClosestItemSq (rects.[i], distanceSq items.[i], i, -1, bestSqDist)
             if j <> -1 then
                 bestSqDist <- sqD
                 bestA <- i
@@ -433,14 +433,14 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
         { IdxA = bestA; IdxB = bestB; Distance = sqrt bestSqDist }
 
     /// <summary>For every item in the tree finds its nearest neighbor item, measured with
-    /// the given exact squared distance function. Pairs for which sqDistance returns NaN are ignored.</summary>
-    /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
+    /// the given exact squared distance function. Pairs for which distanceSq returns NaN are ignored.</summary>
+    /// <param name="distanceSq">Returns the exact squared distance between two items.</param>
     /// <returns>An array of BVHPair. The entry at index i holds i as IdxA, the index of the
     /// nearest neighbor of item i as IdxB and the distance between them.</returns>
-    member bvh.NearestNeighbors (sqDistance: 'T -> 'T -> float) : BVHPair[] =
+    member bvh.NearestNeighbors (distanceSq: 'T -> 'T -> float) : BVHPair[] =
         if items.Count < 2 then fail "BVH2D.NearestNeighbors: needs at least two items."
         Array.init items.Count (fun i ->
-            let struct (j, sqD) = bvh.ClosestItemSq (rects.[i], sqDistance items.[i], -1, i, Double.PositiveInfinity)
+            let struct (j, sqD) = bvh.ClosestItemSq (rects.[i], distanceSq items.[i], -1, i, Double.PositiveInfinity)
             if j = -1 then fail $"BVH2D.NearestNeighbors: no neighbor found for item {i}. All its distances are infinite or NaN."
             { IdxA = i; IdxB = j; Distance = sqrt sqD })
 
@@ -500,13 +500,13 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// <summary>Finds all pairs of items that are closer to each other than the given maximum distance,
     /// measured with the given exact squared distance function.
     /// Uses a dual tree traversal: pairs of subtrees whose bounding rectangles are farther apart
-    /// than the maximum distance are skipped entirely, and sqDistance is only called for pairs of items
+    /// than the maximum distance are skipped entirely, and distanceSq is only called for pairs of items
     /// whose bounding rectangles are within the maximum distance.</summary>
     /// <param name="maxDistance">The maximum distance between two items for the pair to be reported.</param>
-    /// <param name="sqDistance">Returns the exact squared distance between two items.</param>
+    /// <param name="distanceSq">Returns the exact squared distance between two items.</param>
     /// <returns>A ResizeArray of BVHPair, each with IdxA less than IdxB. The order of the pairs is not defined.</returns>
-    member bvh.ClosePairs (maxDistance: float, sqDistance: 'T -> 'T -> float) : ResizeArray<BVHPair> =
-        bvh.ClosePairsByIdx (maxDistance, fun i j _ -> sqDistance items.[i] items.[j])
+    member bvh.ClosePairs (maxDistance: float, distanceSq: 'T -> 'T -> float) : ResizeArray<BVHPair> =
+        bvh.ClosePairsByIdx (maxDistance, fun i j _ -> distanceSq items.[i] items.[j])
 
     /// <summary>Finds all pairs of items whose bounding rectangles are closer to each other
     /// than the given maximum distance. The distance between two rectangles is 0.0 if they overlap or touch,
@@ -621,18 +621,18 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// The tree is walked best first, with the rectangle distances as lower bounds: a min heap holds the
     /// subtrees seen so far keyed by the distance of their bounding rectangle, and the items of an expanded
     /// leaf keyed by their exact distance. So only the part of the tree that is closer than the last
-    /// item taken is ever visited, and sqDistanceTo is called only for the items in those leaves.
-    /// Items for which sqDistanceTo returns NaN are left out.
+    /// item taken is ever visited, and distanceToSq is called only for the items in those leaves.
+    /// Items for which distanceToSq returns NaN are left out.
     /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
     /// <param name="queryRect">The axis aligned bounding rectangle of the query geometry.
-    ///  It must fully contain the query geometry that sqDistanceTo measures from,
+    ///  It must fully contain the query geometry that distanceToSq measures from,
     ///  otherwise the enumeration order is wrong.</param>
-    /// <param name="sqDistanceTo">Returns the exact squared distance from the query geometry to an item.</param>
+    /// <param name="distanceToSq">Returns the exact squared distance from the query geometry to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
     /// <returns>A lazy sequence of the index of each item in the input array and its exact distance to the
     /// query geometry, in order of increasing distance.</returns>
-    member bvh.ItemsByDistance (queryRect: BRect, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
-        bvh.ByDistance ((fun r -> BvhUtil2D.sqRectDist queryRect r), (fun ii -> sqDistanceTo items.[ii]), skipIdx)
+    member bvh.ItemsByDistance (queryRect: BRect, distanceToSq: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        bvh.ByDistance ((fun r -> BvhUtil2D.sqRectDist queryRect r), (fun ii -> distanceToSq items.[ii]), skipIdx)
 
     /// <summary>Lazily enumerates all items in the tree ordered by the distance of their bounding rectangle
     /// to the given 2D point, from the closest to the farthest.
@@ -649,16 +649,16 @@ type BVH2D<'T> private (items: Collections.Generic.IList<'T>, rects: BRect[], it
     /// <summary>Lazily enumerates all items in the tree ordered by their exact distance to the given
     /// 2D point, from the closest to the farthest.
     /// The tree is walked best first, with the rectangle distances as lower bounds, so only the part of it
-    /// that is closer than the last item taken is ever visited, and sqDistanceTo is called only for
-    /// the items in the leaves that were expanded. Items for which sqDistanceTo returns NaN are left out.
+    /// that is closer than the last item taken is ever visited, and distanceToSq is called only for
+    /// the items in the leaves that were expanded. Items for which distanceToSq returns NaN are left out.
     /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
     /// <param name="pt">The 2D point to measure the distances from.</param>
-    /// <param name="sqDistanceTo">Returns the exact squared distance from the query point to an item.</param>
+    /// <param name="distanceToSq">Returns the exact squared distance from the query point to an item.</param>
     /// <param name="skipIdx">An index into the input items array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
     /// <returns>A lazy sequence of the index of each item in the input array and its exact distance to the
     /// point, in order of increasing distance.</returns>
-    member bvh.ItemsByDistance (pt: Pt, sqDistanceTo: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
-        bvh.ByDistance ((fun r -> BvhUtil2D.sqRectPtDist pt r), (fun ii -> sqDistanceTo items.[ii]), skipIdx)
+    member bvh.ItemsByDistance (pt: Pt, distanceToSq: 'T -> float, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        bvh.ByDistance ((fun r -> BvhUtil2D.sqRectPtDist pt r), (fun ii -> distanceToSq items.[ii]), skipIdx)
 
 /// Provides static functions to create BVH2D trees without specifying the generic type argument.
 [<AbstractClass; Sealed>]

@@ -11,7 +11,7 @@ type LinePair = BVHPair
 
 /// <summary>A static Bounding Volume Hierarchy (BVH) over 3D lines built from Euclid axis aligned bounding boxes (BBox).
 /// A thin wrapper around the generic BVH of Line3D that measures distances between
-/// the exact line segments via XLine3D.getSqDistance.
+/// the exact line segments via XLine3D.distanceSq.
 /// The tree is built once from an array of Line3D and is then immutable.
 /// It is well suited to unevenly distributed input because the tree adapts to the actual
 /// bounding boxes of the lines instead of subdividing space uniformly (as an octree or grid would).
@@ -21,7 +21,7 @@ type BVHLine3D private (bvh: BVH<Line3D>) =
 
     /// The exact squared distance between two finite 3D lines.
     static let sqDist (a: Line3D) (b: Line3D) : float =
-        XLine3D.getSqDistance (a, b)
+        XLine3D.distanceSq a b
 
     /// The default maximum amount of lines per leaf node.
     static member val DefaultLeafSize = 4 with get
@@ -62,18 +62,18 @@ type BVHLine3D private (bvh: BVH<Line3D>) =
     /// <summary>Finds the closest line in the tree to the given 3D point.
     /// The distance is measured to the exact (finite) line segments, while the
     /// bounding boxes are used for branch and bound pruning.</summary>
-    /// <param name="pt">The 3D point to search the closest line for.</param>
+    /// <param name="pnt">The 3D point to search the closest line for.</param>
     /// <param name="skipIdx">An index into the input lines array to exclude from the search. Optional, -1 (skip nothing) by default.</param>
     /// <returns>The index of the closest line in the input array and the distance from the point to it.</returns>
-    member _.ClosestLine (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
-        bvh.ClosestItem (pt, (fun (ln: Line3D) -> ln.SqDistanceToPnt pt), skipIdx)
+    member _.ClosestLine (pnt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : int * float =
+        bvh.ClosestItem (pnt, (fun (ln: Line3D) -> ln.DistanceToPntSq pnt), skipIdx)
 
     /// <summary>Finds the point on any line in the tree that is closest to the given 3D point.</summary>
-    /// <param name="pt">The 3D point to search the closest point for.</param>
+    /// <param name="pnt">The 3D point to search the closest point for.</param>
     /// <returns>The closest point on the closest line.</returns>
-    member lb.ClosestPoint (pt: Pnt) : Pnt =
-        let i, _ = lb.ClosestLine pt
-        bvh.Items.[i].ClosestPoint pt
+    member lb.ClosestPoint (pnt: Pnt) : Pnt =
+        let i, _ = lb.ClosestLine pnt
+        bvh.Items.[i].ClosestPoint pnt
 
     /// <summary>Finds the pair of closest lines among all lines in the tree.
     /// For every line the nearest neighbor is searched with branch and bound pruning.</summary>
@@ -108,11 +108,11 @@ type BVHLine3D private (bvh: BVH<Line3D>) =
 
     /// <summary>Finds the indices of all lines whose bounding box is closer to the given
     /// 3D point than the given tolerance.</summary>
-    /// <param name="pt">The 3D point to search around.</param>
+    /// <param name="pnt">The 3D point to search around.</param>
     /// <param name="tolerance">The tolerance distance around the point. Must not be negative. Optional, 0.0 by default.</param>
     /// <returns>A ResizeArray of the indices of the found lines in the input array.</returns>
-    member _.LinesNearPoint (pt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
-        bvh.ItemsNearPoint (pt, tolerance)
+    member _.LinesNearPoint (pnt: Pnt, [<OPT;DEF(0.0)>] tolerance: float) : ResizeArray<int> =
+        bvh.ItemsNearPoint (pnt, tolerance)
 
     /// <summary>Lazily enumerates all lines in the tree ordered by their exact distance to the given
     /// query line, from the closest to the farthest.
@@ -133,9 +133,9 @@ type BVHLine3D private (bvh: BVH<Line3D>) =
     /// The tree is walked best first, with the bounding box distances as lower bounds, so only the part
     /// of it that is closer than the last line taken is ever visited.
     /// The sequence is re-enumerable, every enumeration starts a new traversal.</summary>
-    /// <param name="pt">The 3D point to measure the distances from.</param>
+    /// <param name="pnt">The 3D point to measure the distances from.</param>
     /// <param name="skipIdx">An index into the input lines array to exclude from the enumeration. Optional, -1 (skip nothing) by default.</param>
     /// <returns>A lazy sequence of the index of each line in the input array and its distance to the
     /// point, in order of increasing distance.</returns>
-    member _.LinesByDistance (pt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
-        bvh.ItemsByDistance (pt, (fun (ln: Line3D) -> ln.SqDistanceToPnt pt), skipIdx)
+    member _.LinesByDistance (pnt: Pnt, [<OPT;DEF(-1)>] skipIdx: int) : seq<int * float> =
+        bvh.ItemsByDistance (pnt, (fun (ln: Line3D) -> ln.DistanceToPntSq pnt), skipIdx)

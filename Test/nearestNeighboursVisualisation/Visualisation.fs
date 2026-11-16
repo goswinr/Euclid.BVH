@@ -101,7 +101,7 @@ let private nearest (lines: Line2D[]) (rects: BRect[]) (root: Node) queryIndex n
 
     let addCandidate index =
         if index <> queryIndex then
-            candidates.Add (struct (index, XLine2D.getSqDistance (query, lines.[index])))
+            candidates.Add (struct (index, XLine2D.distanceSq query lines.[index]))
             let ordered = candidates |> Seq.sortBy (fun struct (_, distance) -> distance) |> Seq.toArray
             candidates.Clear()
             candidates.AddRange ordered
@@ -159,7 +159,7 @@ let private measureClosestLine (lines: Line2D[]) queryIndex =
         let mutable closestSqDistance = Double.MaxValue
         for i = 0 to lines.Length - 1 do
             if i <> queryIndex then
-                let sqDistance = XLine2D.getSqDistance (query, lines.[i])
+                let sqDistance = XLine2D.distanceSq query lines.[i]
                 if sqDistance < closestSqDistance then
                     closestIndex <- i
                     closestSqDistance <- sqDistance

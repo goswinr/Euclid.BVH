@@ -1,5 +1,6 @@
 namespace Euclid
 
+open System
 open Euclid.EuclidErrors
 open System.ComponentModel
 
@@ -11,6 +12,7 @@ module AutoOpenPolyline2DBVH =
   type Polyline2D with
 
     /// <summary>Finds all self intersections in a Polyline2D, using a BVH2D over the bounding rectangles of its segments.
+    /// Returns the same as Polyline2D.findAllSelfIntersections, but in about O(n log n) instead of O(n²) time.
     /// Adjacent segments, including the first and last segments of a closed polyline, are skipped.
     /// Two non-adjacent segments that just touch are reported.
     /// Each intersecting segment pair is returned once, ordered by the first segment index, then the second.
@@ -46,28 +48,25 @@ module AutoOpenPolyline2DBVH =
         result
 
     /// <summary>Tries to find a self intersection in a Polyline2D, using a BVH2D over the bounding rectangles of its segments.
+    /// Returns the same as Polyline2D.tryFindSelfIntersection, but in about O(n log n) instead of O(n²) time.
     /// A closed Polyline2D is not reported as a self intersection.
     /// Two non-adjacent segments that just touch are reported.
     /// If several pairs of segments intersect, the pair with the lowest first index, then the lowest second index is returned.
-    /// This is the same result as Polyline2D.tryFindSelfIntersectionWithBRect gives.
-    /// Building the tree and a dual tree traversal take about O(n log n), instead of the O(n²) of testing every pair of segments.
-    /// But unlike the Euclid functions this does not stop at the first intersection, it always tests all candidate pairs.
-    /// On .NET this is faster than both Polyline2D.tryFindSelfIntersection and Polyline2D.tryFindSelfIntersectionWithBRect
-    /// from about 200 points on. At 1,000 points it is about 7 times faster than tryFindSelfIntersection.
-    /// On Fable JavaScript, in a program that also runs other code, it is faster than tryFindSelfIntersection
-    /// from about 200 points on, and faster than tryFindSelfIntersectionWithBRect from about 1,000 points on.
+    /// Unlike Polyline2D.tryFindSelfIntersection this does not stop at the first intersection, it always tests all candidate pairs.
+    /// On .NET this is faster than Polyline2D.tryFindSelfIntersection from about 100 points on, and about 10 times faster at 1,000 points.
+    /// On Fable JavaScript, in a program that also runs other code, it is faster from about 50 points on.
     /// But when tryFindSelfIntersection is about the only code a JavaScript program runs, V8 optimizes it so well
-    /// that it stays faster up to 1,000 to 2,000 points.
+    /// that it stays faster up to about 200 to 500 points.
     /// See Test/BenchPolylineSelfIntersection in the repository for the measurements.</summary>
     /// <param name="pl">The 2D polyline to check.</param>
-    /// <returns>The intersection point and the indices of the two intersecting segments.
-    /// None if there is no self intersection or if the polyline has fewer than 3 points.</returns>
-    static member tryFindSelfIntersectionWithBvh (pl: Polyline2D) : Option<Pt * int * int> =
+    /// <returns>ValueSome with the intersection point and the indices of the two intersecting segments.
+    /// ValueNone if there is no self intersection or if the polyline has fewer than 3 points.</returns>
+    static member tryFindSelfIntersectionWithBvh (pl: Polyline2D) : (Pt * int * int) voption =
         let xys = pl.XYs
         let inline xy i = ResizeArr.getIdx i xys
         let segmentCount = xys.Count / 2 - 1
         if segmentCount < 2 then
-            None // a polyline with fewer than two segments cannot intersect itself
+            ValueNone // a polyline with fewer than two segments cannot intersect itself
         else
             let lastSegment = segmentCount - 1
             let isClosed = pl.IsAlmostClosed 1e-7
@@ -82,7 +81,7 @@ module AutoOpenPolyline2DBVH =
 
             // The items are the segment indices, so ClosePairs passes segment indices with a < b.
             // A squared distance of 0.0 reports the pair, infinity rejects it.
-            let sqDist a b =
+            let distanceSq a b =
                 if b = a + 1 || (isClosed && a = 0 && b = lastSegment) then
                     infinity // adjacent segments share a vertex
                 else
@@ -94,17 +93,17 @@ module AutoOpenPolyline2DBVH =
             let tree =
                 BVH2D.create (segments, fun s ->
                     BRect.createXY(xy (2 * s), xy (2 * s + 1), xy (2 * s + 2), xy (2 * s + 3)))
-            let pairs = tree.ClosePairs(0.0, sqDist)
+            let pairs = tree.ClosePairs(0.0, distanceSq)
             if pairs.Count = 0 then
-                None
+                ValueNone
             else
                 let mutable first = pairs.[0]
                 for p in pairs do
                     if p.IdxA < first.IdxA || (p.IdxA = first.IdxA && p.IdxB < first.IdxB) then
                         first <- p
                 match intersect first.IdxA first.IdxB with
-                | ValueSome pt -> Some (pt, first.IdxA, first.IdxB)
-                | ValueNone -> None
+                | ValueSome pt -> ValueSome (pt, first.IdxA, first.IdxB)
+                | ValueNone -> ValueNone
 
 
 /// When Euclid is opened this module will be auto-opened.
@@ -112,22 +111,42 @@ module AutoOpenPolyline2DBVH =
 [<AutoOpen; EditorBrowsable(EditorBrowsableState.Never)>]
 module AutoOpenPolyline3DBVH =
 
+  /// Fails if the skew distance is negative, NaN or infinite, like the Euclid functions do.
+  let private checkSkewDistance (name: string) (maxSkewDistance: float) : unit =
+      if not (maxSkewDistance >= 0.0) || Double.IsInfinity maxSkewDistance then
+          fail $"Polyline3D.{name}: maxSkewDistance must be finite and nonnegative, got {maxSkewDistance}."
+
   type Polyline3D with
 
     /// <summary>Finds all self intersections in a Polyline3D, using a BVH over the bounding boxes of its segments.
-    /// Two non-adjacent segments intersect if they come closer to each other than maxSkewDistance.
+    /// Returns the same as Polyline3D.findAllSelfIntersections, but in about O(n log n) instead of O(n²) time.
+    /// Two non-adjacent segments intersect if they come closer to each other than 1e-6.
+    /// Use Polyline3D.findAllSelfIntersectionsWithBvhCustom to set this tolerance.
     /// Segments within 0.25 degrees of being parallel are not tested, so overlapping collinear segments are not found.
     /// Adjacent segments, including the first and last segments of a closed polyline, are skipped.
     /// Each intersecting segment pair is returned once, ordered by the first segment index, then the second.
     /// Different segment pairs meeting at the same point are returned separately.</summary>
     /// <param name="pl">The 3D polyline to check.</param>
-    /// <param name="maxSkewDistance">The maximum distance between two segments at their closest approach,
-    /// for them to still count as intersecting. Must not be negative. Optional, 1e-6 by default.</param>
     /// <returns>A ResizeArray of the closest points on the first segments and the indices of the two intersecting segments, with the smaller index first.
     /// Empty if there is no self intersection or if the polyline has fewer than 3 points.</returns>
-    static member findAllSelfIntersectionsWithBvh (pl: Polyline3D, [<OPT;DEF(1e-6)>] maxSkewDistance: float) : ResizeArray<Pnt * int * int> =
-        if maxSkewDistance < 0.0 then
-            fail $"Polyline3D.findAllSelfIntersectionsWithBvh: maxSkewDistance {maxSkewDistance} must not be negative."
+    static member findAllSelfIntersectionsWithBvh (pl: Polyline3D) : ResizeArray<Pnt * int * int> =
+        Polyline3D.findAllSelfIntersectionsWithBvhCustom pl
+
+    /// <summary>Finds all self intersections in a Polyline3D, using a BVH over the bounding boxes of its segments.
+    /// Returns the same as Polyline3D.findAllSelfIntersectionsCustom, but in about O(n log n) instead of O(n²) time.
+    /// Two non-adjacent segments intersect if they come closer to each other than maxSkewDistance.
+    /// Segments within 0.25 degrees of being parallel are not tested, so overlapping collinear segments are not found.
+    /// Adjacent segments, including the first and last segments of a closed polyline, are skipped.
+    /// Each intersecting segment pair is returned once, ordered by the first segment index, then the second.
+    /// Different segment pairs meeting at the same point are returned separately.
+    /// The optional parameter can be given by name. Use Polyline3D.findAllSelfIntersectionsWithBvh for the default.</summary>
+    /// <param name="pl">The 3D polyline to check.</param>
+    /// <param name="maxSkewDistance">The distance two segments must come closer than at their closest approach,
+    /// to count as intersecting. Must be finite and not negative, so 0.0 finds no intersections. Optional, 1e-6 by default.</param>
+    /// <returns>A ResizeArray of the closest points on the first segments and the indices of the two intersecting segments, with the smaller index first.
+    /// Empty if there is no self intersection or if the polyline has fewer than 3 points.</returns>
+    static member findAllSelfIntersectionsWithBvhCustom (pl: Polyline3D, [<OPT;DEF(1e-6)>] maxSkewDistance: float) : ResizeArray<Pnt * int * int> =
+        checkSkewDistance "findAllSelfIntersectionsWithBvhCustom" maxSkewDistance
         let result = ResizeArray<Pnt * int * int>()
         let xyzs = pl.XYZs
         let inline xyz i = ResizeArr.getIdx i xyzs
@@ -159,28 +178,41 @@ module AutoOpenPolyline3DBVH =
         result
 
     /// <summary>Tries to find a self intersection in a Polyline3D, using a BVH over the bounding boxes of its segments.
-    /// Two non-adjacent segments intersect if they come closer to each other than the maxSkewDistance.
+    /// Returns the same as Polyline3D.tryFindSelfIntersection, but in about O(n log n) instead of O(n²) time.
+    /// Two non-adjacent segments intersect if they come closer to each other than 1e-6.
+    /// Use Polyline3D.tryFindSelfIntersectionWithBvhCustom to set this tolerance.
     /// Segments within 0.25 degrees of being parallel are not tested, so overlapping collinear segments are not found.
     /// A closed Polyline3D is not reported as a self intersection.
     /// If several pairs of segments intersect, the pair with the lowest first index, then the lowest second index is returned.
-    /// Building the tree and a dual tree traversal take about O(n log n), instead of the O(n²) of testing every pair of segments.
-    /// But unlike a brute force search this does not stop at the first intersection, it always tests all candidate pairs.
-    /// On .NET this is faster than testing every pair of segments from about 50 points on,
-    /// on Fable JavaScript from about 100 points on.
+    /// Unlike Polyline3D.tryFindSelfIntersection this does not stop at the first intersection, it always tests all candidate pairs.
+    /// On .NET and on Fable JavaScript this is faster than Polyline3D.tryFindSelfIntersection from about 20 points on,
+    /// and about 60 times faster at 1,000 points.
     /// See Test/BenchPolylineSelfIntersection in the repository for the measurements.</summary>
     /// <param name="pl">The 3D polyline to check.</param>
-    /// <param name="maxSkewDistance">The maximum distance between two segments at their closest approach,
-    ///  for them to still count as intersecting. Must not be negative. Optional, 1e-6 by default.</param>
-    /// <returns>The point on the first segment where the two segments are closest, and the indices of the two intersecting segments.
-    /// None if there is no self intersection or if the polyline has fewer than 3 points.</returns>
-    static member tryFindSelfIntersectionWithBvh (pl: Polyline3D, [<OPT;DEF(1e-6)>] maxSkewDistance: float) : Option<Pnt * int * int> =
-        if maxSkewDistance < 0.0 then
-            fail $"Polyline3D.tryFindSelfIntersectionWithBvh: maxSkewDistance {maxSkewDistance} must not be negative."
+    /// <returns>ValueSome with the point on the first segment where the two segments are closest, and the indices of the two intersecting segments.
+    /// ValueNone if there is no self intersection or if the polyline has fewer than 3 points.</returns>
+    static member tryFindSelfIntersectionWithBvh (pl: Polyline3D) : (Pnt * int * int) voption =
+        Polyline3D.tryFindSelfIntersectionWithBvhCustom pl
+
+    /// <summary>Tries to find a self intersection in a Polyline3D, using a BVH over the bounding boxes of its segments.
+    /// Returns the same as Polyline3D.tryFindSelfIntersectionCustom, but in about O(n log n) instead of O(n²) time.
+    /// Two non-adjacent segments intersect if they come closer to each other than maxSkewDistance.
+    /// Segments within 0.25 degrees of being parallel are not tested, so overlapping collinear segments are not found.
+    /// A closed Polyline3D is not reported as a self intersection.
+    /// If several pairs of segments intersect, the pair with the lowest first index, then the lowest second index is returned.
+    /// The optional parameter can be given by name. Use Polyline3D.tryFindSelfIntersectionWithBvh for the default.</summary>
+    /// <param name="pl">The 3D polyline to check.</param>
+    /// <param name="maxSkewDistance">The distance two segments must come closer than at their closest approach,
+    ///  to count as intersecting. Must be finite and not negative, so 0.0 finds no intersections. Optional, 1e-6 by default.</param>
+    /// <returns>ValueSome with the point on the first segment where the two segments are closest, and the indices of the two intersecting segments.
+    /// ValueNone if there is no self intersection or if the polyline has fewer than 3 points.</returns>
+    static member tryFindSelfIntersectionWithBvhCustom (pl: Polyline3D, [<OPT;DEF(1e-6)>] maxSkewDistance: float) : (Pnt * int * int) voption =
+        checkSkewDistance "tryFindSelfIntersectionWithBvhCustom" maxSkewDistance
         let xyzs = pl.XYZs
         let inline xyz i = ResizeArr.getIdx i xyzs
         let segmentCount = xyzs.Count / 3 - 1
         if segmentCount < 2 then
-            None // a polyline with fewer than two segments cannot intersect itself
+            ValueNone // a polyline with fewer than two segments cannot intersect itself
         else
             let lastSegment = segmentCount - 1
             let isClosed = pl.IsAlmostClosed 1e-7
@@ -196,7 +228,7 @@ module AutoOpenPolyline3DBVH =
 
             // The items are the segment indices, so ClosePairs passes segment indices with a < b.
             // A squared distance of 0.0 reports the pair, infinity rejects it.
-            let sqDist a b =
+            let distanceSq a b =
                 if b = a + 1 || (isClosed && a = 0 && b = lastSegment) then
                     infinity // adjacent segments share a vertex
                 else
@@ -212,14 +244,14 @@ module AutoOpenPolyline3DBVH =
                     let bx, by, bz = xyz (i + 3), xyz (i + 4), xyz (i + 5)
                     BBox.createUnchecked(min ax bx, min ay by, min az bz, max ax bx, max ay by, max az bz))
             // Segments whose boxes are farther apart than the skew distance cannot come closer than it:
-            let pairs = tree.ClosePairs(maxSkewDistance, sqDist)
+            let pairs = tree.ClosePairs(maxSkewDistance, distanceSq)
             if pairs.Count = 0 then
-                None
+                ValueNone
             else
                 let mutable first = pairs.[0]
                 for p in pairs do
                     if p.IdxA < first.IdxA || (p.IdxA = first.IdxA && p.IdxB < first.IdxB) then
                         first <- p
                 match intersect first.IdxA first.IdxB with
-                | ValueSome pt -> Some (pt, first.IdxA, first.IdxB)
-                | ValueNone -> None
+                | ValueSome pt -> ValueSome (pt, first.IdxA, first.IdxB)
+                | ValueNone -> ValueNone

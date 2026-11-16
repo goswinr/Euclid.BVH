@@ -69,7 +69,7 @@ let private brutePairs (rects: BRect[]) (maxDist: float) : Set<int * int> =
 type private Disk = { Center: Pt; Radius: float }
 
 let private diskRect (d: Disk) : BRect =
-    BRect.createFromCenter (d.Center, 2.0 * d.Radius, 2.0 * d.Radius)
+    BRect.createCentered (2.0 * d.Radius) (2.0 * d.Radius) d.Center
 
 /// The exact squared distance between the outlines of two disks (0.0 if they intersect).
 let private diskSqDist (a: Disk) (b: Disk) : float =
@@ -334,15 +334,15 @@ let tests =
                 let (idx, d) = bvh.ClosestLine pt
                 let mutable bestD = Double.MaxValue
                 for i = 0 to lines.Length - 1 do
-                    bestD <- min bestD (sqrt (lines.[i].SqDistanceToPt pt))
+                    bestD <- min bestD (sqrt (lines.[i].DistanceToPtSq pt))
                 assertThat d (tag "the closest line distance to a point" >> isCloseTo bestD)
-                assertThat (sqrt (lines.[idx].SqDistanceToPt pt)) (tag "the reported line is at that distance" >> isCloseTo bestD)
+                assertThat (sqrt (lines.[idx].DistanceToPtSq pt)) (tag "the reported line is at that distance" >> isCloseTo bestD)
                 assertThat (bvh.ClosestPoint(pt).DistanceTo pt) (tag "the closest point is at that distance" >> isCloseTo bestD)
             let pair = bvh.ClosestPair ()
             let mutable bestD = Double.MaxValue
             for i = 0 to lines.Length - 1 do
                 for j = i + 1 to lines.Length - 1 do
-                    bestD <- min bestD (sqrt (XLine2D.getSqDistance (lines.[i], lines.[j])))
+                    bestD <- min bestD (sqrt (XLine2D.distanceSq lines.[i] lines.[j]))
             assertThat pair.Distance (tag "the closest pair of lines" >> isCloseTo bestD)
         )
 

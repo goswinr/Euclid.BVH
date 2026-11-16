@@ -31,10 +31,6 @@ type SelfIntersection2D() =
         Polyline2D.tryFindSelfIntersection polyline
 
     [<Benchmark>]
-    member _.TryFindSelfIntersectionWithBRect() =
-        Polyline2D.tryFindSelfIntersectionWithBRect polyline
-
-    [<Benchmark>]
     member _.TryFindSelfIntersectionWithBvh() =
         Polyline2D.tryFindSelfIntersectionWithBvh polyline
 
@@ -52,8 +48,8 @@ type SelfIntersection3D() =
         polyline <- ring3D this.PointCount
 
     [<Benchmark(Baseline = true)>]
-    member _.BruteForce() =
-        tryFindSelfIntersection3D polyline
+    member _.TryFindSelfIntersection() =
+        Polyline3D.tryFindSelfIntersection polyline
 
     [<Benchmark>]
     member _.TryFindSelfIntersectionWithBvh() =
@@ -70,9 +66,8 @@ let warmUp () =
     for _ in 1 .. 5 do
         for _ in 1 .. 100 do
             Polyline2D.tryFindSelfIntersection small |> ignore
-            Polyline2D.tryFindSelfIntersectionWithBRect small |> ignore
             Polyline2D.tryFindSelfIntersectionWithBvh small |> ignore
-            tryFindSelfIntersection3D small3D |> ignore
+            Polyline3D.tryFindSelfIntersection small3D |> ignore
             Polyline3D.tryFindSelfIntersectionWithBvh small3D |> ignore
         Thread.Sleep 200 // tier promotion compiles in the background
 

@@ -62,7 +62,7 @@ let private brutePairs (boxes: BBox[]) (maxDist: float) : Set<int * int> =
 type private Ball = { Center: Pnt; Radius: float }
 
 let private ballBox (b: Ball) : BBox =
-    BBox.createFromCenter (b.Center, 2.0 * b.Radius, 2.0 * b.Radius, 2.0 * b.Radius)
+    BBox.createCentered (2.0 * b.Radius) (2.0 * b.Radius) (2.0 * b.Radius) b.Center
 
 /// The exact squared distance between the surfaces of two balls (0.0 if they intersect).
 let private ballSqDist (a: Ball) (b: Ball) : float =
@@ -208,7 +208,7 @@ let tests =
         )
 
         test ("box and point queries reject negative tolerances", fun _ ->
-            let box = BBox.createFromCenter (Pnt (0., 0., 0.), 2., 2., 2.)
+            let box = BBox.createCentered 2. 2. 2. (Pnt (0., 0., 0.))
             let bvh = BVH.createFromBoxes [| box |]
             for tolerance in [ -1.0; -1e-200; nan ] do
                 assertThat (fun () -> bvh.ItemsInBox (box, tolerance) |> ignore) (tag $"negative box tolerance {tolerance}" >> throws)

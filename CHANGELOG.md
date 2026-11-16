@@ -6,7 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.0.0-alpha1] - 2026-11-16
+### Added
+- `Polyline3D.tryFindSelfIntersectionWithBvhCustom (pl, ?maxSkewDistance)` and `Polyline3D.findAllSelfIntersectionsWithBvhCustom (pl, ?maxSkewDistance)` take the skew distance, like Euclid's `Polyline3D.tryFindSelfIntersectionCustom` and `findAllSelfIntersectionsCustom`.
+
 ### Changed
+- **Breaking:** Requires Euclid 1.0.0-alpha3 and follows the conventions of its unified API.
+  - `Polyline2D.tryFindSelfIntersectionWithBvh` and `Polyline3D.tryFindSelfIntersectionWithBvh` return a `voption` instead of an `option`, like every `try...` member of Euclid 1.0. Match on `ValueSome` and `ValueNone`.
+  - `Polyline3D.tryFindSelfIntersectionWithBvh pl` and `Polyline3D.findAllSelfIntersectionsWithBvh pl` no longer take an optional skew distance, they use the default of 1e-6. Use the new `...Custom` members to set it.
+  - A `maxSkewDistance` that is NaN or infinite now fails, like in Euclid; before, only a negative one did.
+  - Parameters follow Euclid's names, with `Sq` last and `pnt` for a `Pnt`: `sqDistanceTo` is now `distanceToSq`, `sqDistance` is now `distanceSq`, and `pt` is now `pnt` in `BVH` and `BVHLine3D`. Only calls that pass these arguments by name need to change.
+- The polyline self intersection members return the same results as Euclid's new `Polyline2D` and `Polyline3D` functions `tryFindSelfIntersection` and `findAllSelfIntersections`, and the tests check this. Their doc comments give the sizes from which they are faster than these functions.
+- The benchmark in `Test/BenchPolylineSelfIntersection` compares with Euclid's `Polyline3D.tryFindSelfIntersection` instead of its own 3D brute force copy, and no longer measures `Polyline2D.tryFindSelfIntersectionWithBRect`, which Euclid 1.0 removed.
 - On Fable JavaScript Release builds, tree building is about 2.2 times faster, the `...ByDistance` sequences about 2.9 times and the polyline self intersection about 2.4 times: their loops index arrays directly instead of calling the bounds checked `item` and `setItem` of fable-library, and the heap removes its last entry with `pop` instead of `splice`.
   - Debug builds and .NET keep the bounds checks; .NET speed is unchanged.
 
@@ -80,7 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fable support: the library and all tests compile and pass with Fable (JavaScript and TypeScript), tested with Mocha in CI like the Euclid library.
 - An interactive SVG nearest-neighbour visualisation for 20–20,000 random lines, stepping through queries, selecting 1–10 neighbours, showing the bounding rectangles tested by the search and comparing per-query BVH performance with brute-force closest-line search.
 
-[Unreleased]: https://github.com/goswinr/Euclid.BVH/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/goswinr/Euclid.BVH/compare/1.0.0-alpha1...HEAD
+[1.0.0-alpha1]: https://github.com/goswinr/Euclid.BVH/compare/0.3.0...1.0.0-alpha1
 [0.3.0]: https://github.com/goswinr/Euclid.BVH/compare/0.2.1...0.3.0
 [0.2.1]: https://github.com/goswinr/Euclid.BVH/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/goswinr/Euclid.BVH/compare/0.1.0...0.2.0

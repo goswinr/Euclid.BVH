@@ -101,13 +101,13 @@ let overlaps = bvh.ClosePairs 0.0
 // or build from any items with a box function:
 type Ball = { Center: Pnt; Radius: float }
 let balls : Ball[] = ...
-let bvh = BVH.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radius, 2.*b.Radius, 2.*b.Radius))
+let bvh = BVH.create (balls, fun b -> BBox.createCentered (2.*b.Radius) (2.*b.Radius) (2.*b.Radius) b.Center)
 
 // box based queries work as-is; for exact distances supply a squared distance function:
-let sqDist a b = let d = max 0.0 (a.Center.DistanceTo b.Center - a.Radius - b.Radius) in d * d
-let pair = bvh.ClosestPair sqDist                 // globally closest pair of balls
-let touching = bvh.ClosePairs (0.1, sqDist)       // all pairs of balls closer than 0.1
-let i, d = bvh.ClosestItem (queryBox, sqDist query)  // closest ball to a query ball
+let distanceSq a b = let d = max 0.0 (a.Center.DistanceTo b.Center - a.Radius - b.Radius) in d * d
+let pair = bvh.ClosestPair distanceSq                    // globally closest pair of balls
+let touching = bvh.ClosePairs (0.1, distanceSq)          // all pairs of balls closer than 0.1
+let i, d = bvh.ClosestItem (queryBox, distanceSq query)  // closest ball to a query ball
 ```
 
 The bounding box distance is always a lower bound of the exact distance, so the tree can
@@ -151,7 +151,7 @@ let withinFive =
     |> Seq.toArray
 
 // the same ordered by an exact distance function instead of by the bounding box:
-let nearestBalls = bvh.ItemsByDistance (queryBox, sqDist query) |> Seq.truncate 3 |> Seq.toArray
+let nearestBalls = bvh.ItemsByDistance (queryBox, distanceSq query) |> Seq.truncate 3 |> Seq.toArray
 ```
 
 The tree is walked best first: a min heap holds the subtrees and items seen so far, keyed by
@@ -166,22 +166,28 @@ re-enumerable, and each enumeration starts a new traversal.
 
 ### Polyline self intersection
 
-Opening `Euclid` also adds `tryFindSelfIntersectionWithBvh` to Euclid's `Polyline2D` and `Polyline3D`.
-It puts the segments of the polyline into a tree and tests only the pairs of segments whose
+Opening `Euclid` also adds `tryFindSelfIntersectionWithBvh` and `findAllSelfIntersectionsWithBvh`
+to Euclid's `Polyline2D` and `Polyline3D`.
+They put the segments of the polyline into a tree and test only the pairs of segments whose
 bounding rectangles or boxes touch, in about `O(n log n)` instead of the `O(n²)` of testing every pair:
 
 ```fsharp
 match Polyline2D.tryFindSelfIntersectionWithBvh polyline with
-| Some (pt, i, j) -> printfn $"segments {i} and {j} intersect at {pt}"
-| None -> printfn "no self intersection"
+| ValueSome (pt, i, j) -> printfn $"segments {i} and {j} intersect at {pt}"
+| ValueNone -> printfn "no self intersection"
 
 // in 3D two segments intersect if they come closer than the skew distance, 1e-6 by default:
-let hit = Polyline3D.tryFindSelfIntersectionWithBvh (polyline3D, 0.01)
+let hit = Polyline3D.tryFindSelfIntersectionWithBvh polyline3D
+let looseHit = Polyline3D.tryFindSelfIntersectionWithBvhCustom (polyline3D, maxSkewDistance = 0.01)
+
+// every intersecting pair of segments, ordered by segment index:
+let all = Polyline2D.findAllSelfIntersectionsWithBvh polyline
 ```
 
-In 2D it returns the same result as Euclid's `Polyline2D.tryFindSelfIntersectionWithBRect`.
-Building the tree costs more than it saves on small polylines: on .NET it is faster than testing
-every pair of segments from about 200 points on in 2D and from about 50 points on in 3D.
+They return the same results as Euclid's own `tryFindSelfIntersection` and `findAllSelfIntersections`
+(and their `...Custom` forms in 3D), with the same rules and tolerances.
+Building the tree costs more than it saves on small polylines: on .NET they are faster than Euclid's
+functions from about 100 points on in 2D and from about 20 points on in 3D.
 On Fable JavaScript the 2D crossover depends on what else the program runs.
 See the [benchmark](Test/BenchPolylineSelfIntersection/README.md) for the measurements.
 
@@ -205,7 +211,7 @@ let lines =
     Array.init 10_000 (fun _ ->
         let p = Pnt (rand.NextDouble() * 100., rand.NextDouble() * 100., rand.NextDouble() * 100.)
         let v = Vec (rand.NextDouble() - 0.5, rand.NextDouble() - 0.5, rand.NextDouble() - 0.5)
-        Line3D.createFromPntAndVec (p, v))
+        Line3D.createFromPntAndVec p v)
 
 let bvh = BVHLine3D.create lines
 
@@ -271,7 +277,7 @@ let rand = Random 42
 let boxes =
     Array.init 10_000 (fun _ ->
         let c = Pnt (rand.NextDouble() * 100., rand.NextDouble() * 100., rand.NextDouble() * 100.)
-        BBox.createFromCenter (c, rand.NextDouble(), rand.NextDouble(), rand.NextDouble()))
+        BBox.createCentered (rand.NextDouble()) (rand.NextDouble()) (rand.NextDouble()) c)
 
 let bvh = BVH.createFromBoxes boxes
 
@@ -279,7 +285,7 @@ let bvh = BVH.createFromBoxes boxes
 let overlaps = bvh.ClosePairs 0.0
 
 // all boxes within 1.5 units of a given box:
-let query = BBox.createFromCenter (Pnt (50., 50., 50.), 4., 4., 4.)
+let query = BBox.createCentered 4. 4. 4. (Pnt (50., 50., 50.))
 let near = bvh.ItemsInBox (query, 1.5)
 
 // the box closest to a 3D point:
@@ -302,18 +308,18 @@ let balls =
         { Center = Pnt (rand.NextDouble() * 100., rand.NextDouble() * 100., rand.NextDouble() * 100.)
           Radius = 0.1 + rand.NextDouble() })
 
-let bvh = BVH.create (balls, fun b -> BBox.createFromCenter (b.Center, 2.*b.Radius, 2.*b.Radius, 2.*b.Radius))
+let bvh = BVH.create (balls, fun b -> BBox.createCentered (2.*b.Radius) (2.*b.Radius) (2.*b.Radius) b.Center)
 
 // exact squared surface-to-surface distance between two balls:
-let sqDist a b =
+let distanceSq a b =
     let d = max 0.0 (a.Center.DistanceTo b.Center - a.Radius - b.Radius)
     d * d
 
 // the pair of balls with the smallest gap between their surfaces:
-let pair = bvh.ClosestPair sqDist
+let pair = bvh.ClosestPair distanceSq
 
 // all pairs of balls whose surfaces are closer than 0.1:
-let touching = bvh.ClosePairs (0.1, sqDist)
+let touching = bvh.ClosePairs (0.1, distanceSq)
 ```
 
 ## API
@@ -325,16 +331,16 @@ The core type is the generic `BVH<'T>`:
 | `BVH.create (items, getBox, ?leafSize)` | Builds the immutable tree from any items and a bounding box function. |
 | `BVH.createFromBoxes (boxes, ?leafSize)` | Builds the tree directly from `BBox[]`, the boxes are the items. |
 | `bvh.ClosestBox (queryBox, ?skipIdx)` | The item whose bounding box is closest to a query box. |
-| `bvh.ClosestBox (pt, ?skipIdx)` | The item whose bounding box is closest to a 3D point. |
-| `bvh.ClosestItem (queryBox, sqDistanceTo, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
-| `bvh.ClosestItem (pt, sqDistanceTo, ?skipIdx)` | The item closest to a 3D point, measured with an exact squared distance function. |
-| `bvh.ClosestPair ()` / `bvh.ClosestPair sqDistance` | The globally closest pair, by box distance or exact distance. |
-| `bvh.NearestNeighbors ()` / `bvh.NearestNeighbors sqDistance` | The nearest neighbor of every item. |
-| `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, sqDistance)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
+| `bvh.ClosestBox (pnt, ?skipIdx)` | The item whose bounding box is closest to a 3D point. |
+| `bvh.ClosestItem (queryBox, distanceToSq, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
+| `bvh.ClosestItem (pnt, distanceToSq, ?skipIdx)` | The item closest to a 3D point, measured with an exact squared distance function. |
+| `bvh.ClosestPair ()` / `bvh.ClosestPair distanceSq` | The globally closest pair, by box distance or exact distance. |
+| `bvh.NearestNeighbors ()` / `bvh.NearestNeighbors distanceSq` | The nearest neighbor of every item. |
+| `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, distanceSq)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
 | `bvh.ItemsInBox (box, ?tolerance)` | All items whose bounding box is within `tolerance` of a given `BBox`. |
-| `bvh.ItemsNearPoint (pt, ?tolerance)` | All items whose bounding box is within `tolerance` of a given 3D point. |
-| `bvh.BoxesByDistance (queryBox, ?skipIdx)` / `bvh.BoxesByDistance (pt, ?skipIdx)` | A lazy `seq` of all items ordered by the distance of their bounding box, closest first. |
-| `bvh.ItemsByDistance (queryBox, sqDistanceTo, ?skipIdx)` / `bvh.ItemsByDistance (pt, sqDistanceTo, ?skipIdx)` | A lazy `seq` of all items ordered by an exact squared distance function, closest first. |
+| `bvh.ItemsNearPoint (pnt, ?tolerance)` | All items whose bounding box is within `tolerance` of a given 3D point. |
+| `bvh.BoxesByDistance (queryBox, ?skipIdx)` / `bvh.BoxesByDistance (pnt, ?skipIdx)` | A lazy `seq` of all items ordered by the distance of their bounding box, closest first. |
+| `bvh.ItemsByDistance (queryBox, distanceToSq, ?skipIdx)` / `bvh.ItemsByDistance (pnt, distanceToSq, ?skipIdx)` | A lazy `seq` of all items ordered by an exact squared distance function, closest first. |
 
 `BVH2D<'T>` is the 2D equivalent, built on `BRect` instead of `BBox`. It has the same members,
 with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
@@ -345,15 +351,15 @@ with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 | `BVH2D.createFromRects (rects, ?leafSize)` | Builds a 2D tree directly from `BRect[]`, the rectangles are the items. |
 | `bvh.ClosestRect (queryRect, ?skipIdx)` | The item whose bounding rectangle is closest to a query rectangle. |
 | `bvh.ClosestRect (pt, ?skipIdx)` | The item whose bounding rectangle is closest to a 2D point. |
-| `bvh.ClosestItem (queryRect, sqDistanceTo, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
-| `bvh.ClosestItem (pt, sqDistanceTo, ?skipIdx)` | The item closest to a 2D point, measured with an exact squared distance function. |
-| `bvh.ClosestPair ()` / `bvh.ClosestPair sqDistance` | The globally closest pair, by rectangle distance or exact distance. |
-| `bvh.NearestNeighbors ()` / `bvh.NearestNeighbors sqDistance` | The nearest neighbor of every item. |
-| `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, sqDistance)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
+| `bvh.ClosestItem (queryRect, distanceToSq, ?skipIdx)` | The item closest to a query, measured with an exact squared distance function. |
+| `bvh.ClosestItem (pt, distanceToSq, ?skipIdx)` | The item closest to a 2D point, measured with an exact squared distance function. |
+| `bvh.ClosestPair ()` / `bvh.ClosestPair distanceSq` | The globally closest pair, by rectangle distance or exact distance. |
+| `bvh.NearestNeighbors ()` / `bvh.NearestNeighbors distanceSq` | The nearest neighbor of every item. |
+| `bvh.ClosePairs maxDistance` / `bvh.ClosePairs (maxDistance, distanceSq)` | All pairs closer than `maxDistance`, found by dual tree traversal. |
 | `bvh.ItemsInRect (rect, ?tolerance)` | All items whose bounding rectangle is within `tolerance` of a given `BRect`. |
 | `bvh.ItemsNearPoint (pt, ?tolerance)` | All items whose bounding rectangle is within `tolerance` of a given 2D point. |
 | `bvh.RectsByDistance (queryRect, ?skipIdx)` / `bvh.RectsByDistance (pt, ?skipIdx)` | A lazy `seq` of all items ordered by the distance of their bounding rectangle, closest first. |
-| `bvh.ItemsByDistance (queryRect, sqDistanceTo, ?skipIdx)` / `bvh.ItemsByDistance (pt, sqDistanceTo, ?skipIdx)` | A lazy `seq` of all items ordered by an exact squared distance function, closest first. |
+| `bvh.ItemsByDistance (queryRect, distanceToSq, ?skipIdx)` / `bvh.ItemsByDistance (pt, distanceToSq, ?skipIdx)` | A lazy `seq` of all items ordered by an exact squared distance function, closest first. |
 | `bvh.Rectangle` | The bounding rectangle around all items. |
 
 `BVHLine3D` is a thin wrapper over `BVH<Line3D>` that measures exact segment-to-segment distances:
@@ -366,10 +372,10 @@ with `Rect` in place of `Box` and `Pt` in place of `Pnt`:
 | `bvh.NearestNeighbors ()` | The nearest neighbor of every line. |
 | `bvh.ClosePairs maxDistance` | All pairs of lines closer than `maxDistance` to each other, found by dual tree traversal. |
 | `bvh.LinesInBox (box, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given `BBox`. |
-| `bvh.ClosestLine (pt, ?skipIdx)` | The index of and distance to the line closest to a 3D point. |
-| `bvh.ClosestPoint pt` | The point on any line in the tree that is closest to a 3D point. |
-| `bvh.LinesNearPoint (pt, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given 3D point. |
-| `bvh.LinesByDistance (query, ?skipIdx)` / `bvh.LinesByDistance (pt, ?skipIdx)` | A lazy `seq` of all lines ordered by their exact distance to a query line or point, closest first. |
+| `bvh.ClosestLine (pnt, ?skipIdx)` | The index of and distance to the line closest to a 3D point. |
+| `bvh.ClosestPoint pnt` | The point on any line in the tree that is closest to a 3D point. |
+| `bvh.LinesNearPoint (pnt, ?tolerance)` | All lines whose bounding box is within `tolerance` of a given 3D point. |
+| `bvh.LinesByDistance (query, ?skipIdx)` / `bvh.LinesByDistance (pnt, ?skipIdx)` | A lazy `seq` of all lines ordered by their exact distance to a query line or point, closest first. |
 | `bvh.Tree` | The underlying generic `BVH<Line3D>`. |
 
 `BVHLine2D` provides the corresponding `Line2D` API: `ClosestLine`, `ClosestPoint`,
@@ -380,8 +386,11 @@ Extension members on Euclid's polylines, available after `open Euclid`:
 
 | Member | Description |
 | --- | --- |
-| `Polyline2D.tryFindSelfIntersectionWithBvh pl` | The first self intersection of a 2D polyline, as the intersection point and the two segment indices, using a `BVH2D` over its segments. |
-| `Polyline3D.tryFindSelfIntersectionWithBvh (pl, ?maxSkewDistance)` | The first self intersection of a 3D polyline, where two segments intersect if they come closer than `maxSkewDistance`, using a `BVH` over its segments. |
+| `Polyline2D.tryFindSelfIntersectionWithBvh pl` | The first self intersection of a 2D polyline, as a `voption` of the intersection point and the two segment indices, using a `BVH2D` over its segments. |
+| `Polyline2D.findAllSelfIntersectionsWithBvh pl` | All self intersections of a 2D polyline, ordered by segment index. |
+| `Polyline3D.tryFindSelfIntersectionWithBvh pl` | The first self intersection of a 3D polyline, where two segments intersect if they come closer than 1e-6, using a `BVH` over its segments. |
+| `Polyline3D.tryFindSelfIntersectionWithBvhCustom (pl, ?maxSkewDistance)` | The same, with the given skew distance. |
+| `Polyline3D.findAllSelfIntersectionsWithBvh pl` / `Polyline3D.findAllSelfIntersectionsWithBvhCustom (pl, ?maxSkewDistance)` | All self intersections of a 3D polyline, ordered by segment index. |
 
 Full API documentation: [goswinr.github.io/Euclid.BVH](https://goswinr.github.io/Euclid.BVH)
 
